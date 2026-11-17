@@ -932,8 +932,8 @@ async function submitHandTiles(){
     await writeGameAndHand(game,hand);
     setMessage("타일을 성공적으로 제출했습니다.");
   }catch(error){
-    console.error(error);
-    setMessage("타일 제출에 실패했습니다. 연결 상태와 Firebase 규칙을 확인하세요.");
+    console.error("타일 제출 오류: ", error);
+    setMessage("타일 제출 실패:" + (error.code||"UNKNOWN") +" / " + error.message);
   }finally{
     actionBusy=false;
   }
