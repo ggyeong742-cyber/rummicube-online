@@ -105,7 +105,6 @@ h1{font-size:29px}
 <span id="playerCount"></span>
 </div>
 <div id="players"></div>
-
 <div class="panel" style="margin-top:18px">
 <h3>게임 설정</h3>
 <p id="settingText"></p>
@@ -120,7 +119,6 @@ h1{font-size:29px}
 </div>
 <p id="settingsNotice" class="small"></p>
 </div>
-
 <div class="row">
 <button class="green" id="readyButton">준비 완료</button>
 <button class="primary" id="startButton">게임 시작</button>
@@ -214,6 +212,7 @@ let disconnectArmed=false;
 let leavingRoom=false;
 let actionBusy=false;
 let handLoaded=false;
+let authPromise=null;
 
 const $=id=>document.getElementById(id);
 const roomRef=()=>db.ref("rooms/"+roomCode);
@@ -248,11 +247,16 @@ function normalizeCode(value){
 async function login(){
   if(auth.currentUser){
     uid=auth.currentUser.uid;
-    return;
+    return uid;
   }
 
-  const result=await auth.signInAnonymously();
+  if(!authPromise){
+    authPromise=auth.signInAnonymously();
+  }
+
+  const result=await authPromise;
   uid=result.user.uid;
+  return uid;
 }
 
 function makeTile(color,num,joker=false){
@@ -418,6 +422,7 @@ function sortGroup(group){
 
 async function createRoom(){
   if(actionBusy) return;
+
   actionBusy=true;
   $("createButton").disabled=true;
 
@@ -464,8 +469,8 @@ async function createRoom(){
     roomCode=code;
     enterRoom();
   }catch(error){
-    console.error(error);
-    alert("방을 만들지 못했습니다. 이미 사용 중인 코드이거나 Firebase 규칙에 문제가 있을 수 있습니다.");
+    console.error("방 생성 오류:",error);
+    alert("방 생성 실패\n오류 코드: "+(error.code||"UNKNOWN")+"\n오류 내용: "+error.message);
   }finally{
     actionBusy=false;
     $("createButton").disabled=false;
@@ -474,10 +479,12 @@ async function createRoom(){
 
 async function joinRoom(){
   if(actionBusy) return;
+
   actionBusy=true;
   $("joinButton").disabled=true;
 
-  let reserved=false;
+  let memberReserved=false;
+  let orderReserved=false;
   let code="";
 
   try{
@@ -511,30 +518,22 @@ async function joinRoom(){
       return;
     }
 
-    if(data.members && data.members[uid]){
+    if(!data.members || !Array.isArray(data.order)){
+      alert("방 데이터가 올바르지 않습니다.");
+      return;
+    }
+
+    if(data.members[uid]){
       nickname=name;
       roomCode=code;
       enterRoom();
       return;
     }
 
-    const orderRef=ref.child("order");
-
-    const orderResult=await orderRef.transaction(current=>{
-      const currentOrder=Array.isArray(current)?current:[];
-
-      if(currentOrder.includes(uid)) return currentOrder;
-      if(currentOrder.length>=4) return;
-
-      return [...currentOrder,uid];
-    });
-
-    if(!orderResult.committed){
-      alert("방 인원이 가득 찼거나 참가에 실패했습니다.");
+    if(data.order.length>=4){
+      alert("방 인원이 가득 찼습니다.");
       return;
     }
-
-    reserved=true;
 
     await ref.child("members/"+uid).set({
       nickname:name,
@@ -543,26 +542,63 @@ async function joinRoom(){
       handCount:0
     });
 
+    memberReserved=true;
+
+    const orderRef=ref.child("order");
+
+    const result=await orderRef.transaction(current=>{
+      const currentOrder=Array.isArray(current)?current:[];
+
+      if(currentOrder.includes(uid)){
+        return currentOrder;
+      }
+
+      if(currentOrder.length>=4){
+        return;
+      }
+
+      return [...currentOrder,uid];
+    });
+
+    if(!result.committed){
+      throw new Error("방 인원이 가득 찼거나 참가자 목록 갱신에 실패했습니다.");
+    }
+
+    orderReserved=true;
+
     nickname=name;
     roomCode=code;
-    enterRoom();
-  }catch(error){
-    console.error("방 참가 오류:", error);
-    alert("오류 코드: " + error.code + "\n오류 내용: " + error.message);
 
-    if(reserved && code){
+    enterRoom();
+
+  }catch(error){
+    console.error("방 참가 오류:",error);
+
+    if(code){
       try{
-        await db.ref("rooms/"+code+"/order").transaction(current=>{
-          if(!Array.isArray(current)) return current;
-          return current.filter(id=>id!==uid);
-        });
-      }catch(rollbackError){
-        console.error(rollbackError);
+        const ref=db.ref("rooms/"+code);
+
+        if(orderReserved){
+          await ref.child("order").transaction(current=>{
+            if(!Array.isArray(current)) return current;
+            return current.filter(id=>id!==uid);
+          });
+        }
+
+        if(memberReserved){
+          await ref.child("members/"+uid).remove();
+        }
+      }catch(cleanupError){
+        console.error("참가 취소 처리 오류:",cleanupError);
       }
     }
 
-    roomCode="";
-    alert("방 참가에 실패했습니다. Firebase 규칙과 방 상태를 확인하세요.");
+    alert(
+      "방 참가에 실패했습니다.\n"+
+      "오류 코드: "+(error.code||"UNKNOWN")+"\n"+
+      "오류 내용: "+error.message
+    );
+
   }finally{
     actionBusy=false;
     $("joinButton").disabled=false;
@@ -1277,6 +1313,7 @@ function renderChat(messages){
       text.textContent=item.text||"";
 
       line.append(name,text);
+      line.appendChild(text);
       container.appendChild(line);
     });
 
@@ -1383,11 +1420,9 @@ document.addEventListener("keydown",e=>{
   }
 });
 
-auth.signInAnonymously().then(result=>{
-  uid=result.user.uid;
-}).catch(error=>{
-  console.error(error);
-  alert("Firebase 로그인에 실패했습니다. Firebase 익명 로그인을 활성화했는지 확인하세요.");
+login().catch(error=>{
+  console.error("Firebase 로그인 오류:",error);
+  alert("Firebase 로그인에 실패했습니다. Firebase 익명 로그인을 활성화했는지 확인하세요.\n"+error.message);
 });
 </script>
 </body>
