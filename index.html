@@ -284,26 +284,57 @@ listenChat();
 }
 
 async function createRoom(){
-if(actionLock)return;
-nickname=$("nickname").value.trim();
-if(!nickname){alert("닉네임을 입력해 주세요.");return;}
-actionLock=true;
-try{
-let code=randomCode();
-while((await db.ref("rooms/"+code).once("value")).exists())code=randomCode();
-const data={
-hostUid:uid,
-status:"waiting",
-settings:{jokerCount:2},
-members:{[uid]:{nickname,ready:false,handCount:0}},
-order:[uid],
-createdAt:Date.now()
-};
-await db.ref("rooms/"+code).set(data);
-await enterRoom(code);
-}catch(e){
-alert("방 생성 실패: "+e.message);
-}finally{actionLock=false;}
+  if(actionLock) return;
+
+  nickname=$("nickname").value.trim();
+
+  if(!nickname){
+    alert("닉네임을 입력해 주세요.");
+    return;
+  }
+
+  actionLock=true;
+
+  try{
+    if(!auth.currentUser){
+      throw new Error("Firebase 로그인이 완료되지 않았습니다.");
+    }
+
+    uid=auth.currentUser.uid;
+
+    let code=randomCode();
+
+    while((await db.ref("rooms/"+code).once("value")).exists()){
+      code=randomCode();
+    }
+
+    const data={
+      hostUid:uid,
+      status:"waiting",
+      settings:{
+        jokerCount:2
+      },
+      members:{
+        [uid]:{
+          nickname,
+          ready:false,
+          handCount:0
+        }
+      },
+      order:[uid],
+      createdAt:Date.now()
+    };
+
+    await db.ref("rooms/"+code).set(data);
+
+    await enterRoom(code);
+
+  }catch(e){
+    console.error("방 생성 오류:",e);
+    alert("방 생성 실패: "+e.message);
+  }finally{
+    actionLock=false;
+  }
 }
 
 async function joinRoom(){
