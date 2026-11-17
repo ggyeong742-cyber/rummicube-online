@@ -296,11 +296,26 @@ async function createRoom(){
   actionLock=true;
 
   try{
+    console.log("인증 정보:",auth.currentUser);
+    console.log("인증 UID:",auth.currentUser?.uid);
+    console.log("앱 UID:",uid);
+    console.log("DB 주소:",db.ref().toString());
+
     if(!auth.currentUser){
       throw new Error("Firebase 로그인이 완료되지 않았습니다.");
     }
 
+    await auth.currentUser.getIdToken(true);
+
     uid=auth.currentUser.uid;
+
+    if(!uid){
+      throw new Error("인증 UID를 확인할 수 없습니다.");
+    }
+
+    const connection=await db.ref(".info/connected").once("value");
+
+    console.log("Firebase DB 연결:",connection.val());
 
     let code=randomCode();
 
@@ -316,7 +331,7 @@ async function createRoom(){
       },
       members:{
         [uid]:{
-          nickname,
+          nickname:nickname,
           ready:false,
           handCount:0
         }
@@ -325,18 +340,29 @@ async function createRoom(){
       createdAt:Date.now()
     };
 
+    console.log("방 생성 시도:",code,data);
+
     await db.ref("rooms/"+code).set(data);
+
+    console.log("방 생성 성공:",code);
 
     await enterRoom(code);
 
   }catch(e){
-    console.error("방 생성 오류:",e);
-    alert("방 생성 실패: "+e.message);
+    console.error("방 생성 상세 오류:",e);
+    console.error("오류 코드:",e.code);
+    console.error("오류 메시지:",e.message);
+
+    alert(
+      "방 생성 실패\n"+
+      "오류 코드: "+(e.code||"확인 불가")+"\n"+
+      "오류 메시지: "+e.message
+    );
+
   }finally{
     actionLock=false;
   }
 }
-
 async function joinRoom(){
 if(actionLock)return;
 nickname=$("nickname").value.trim();
