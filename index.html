@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -50,7 +51,7 @@ h2{margin-top:0}
 .tile.orangetile{color:#f9a825}
 #hand{display:flex;flex-wrap:wrap;gap:6px;min-height:80px;padding:12px;background:#123d2c;border-radius:8px}
 #gameButtons{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-#gameMessage{background:#205a40;padding:12px;border-radius:7px;min-height:42px}
+#gameMessage{background:#205a40;padding:12px;border-radius:7px;min-height:42px;overflow-wrap:anywhere}
 #topInfo{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 @media(max-width:650px){
 #app{padding:8px}
@@ -251,7 +252,10 @@ async function login(){
   }
 
   if(!authPromise){
-    authPromise=auth.signInAnonymously();
+    authPromise=auth.signInAnonymously().catch(error=>{
+      authPromise=null;
+      throw error;
+    });
   }
 
   const result=await authPromise;
@@ -292,32 +296,44 @@ function makeDeck(jokerCount){
 }
 
 function validGroup(group){
-  if(group.length<3 || group.length>13) return false;
+  if(!Array.isArray(group) || group.length<3 || group.length>13) return false;
 
   const normal=group.filter(t=>!t.joker);
   const jokers=group.length-normal.length;
 
   if(!normal.length) return false;
 
+  if(normal.some(t=>
+    !Number.isInteger(t.num) ||
+    t.num<1 ||
+    t.num>13 ||
+    !Object.prototype.hasOwnProperty.call(COLORS,t.color)
+  )) return false;
+
   const numbers=normal.map(t=>t.num);
   const colors=normal.map(t=>t.color);
 
-  if(group.length<=4 &&
-     new Set(numbers).size===1 &&
-     new Set(colors).size===colors.length &&
-     new Set(colors).size+jokers<=4){
-    return true;
-  }
+  const isSet=
+    group.length<=4 &&
+    new Set(numbers).size===1 &&
+    new Set(colors).size===colors.length &&
+    normal.length+jokers<=4;
 
-  if(new Set(colors).size===1 &&
-     new Set(numbers).size===numbers.length){
+  if(isSet) return true;
+
+  const isRun=
+    new Set(colors).size===1 &&
+    new Set(numbers).size===numbers.length;
+
+  if(isRun){
     for(let start=1;start<=14-group.length;start++){
-      const sequence=new Set(
-        Array.from({length:group.length},(_,i)=>start+i)
+      const sequence=Array.from(
+        {length:group.length},
+        (_,i)=>start+i
       );
 
-      if(numbers.every(n=>sequence.has(n))){
-        const missing=[...sequence].filter(n=>!numbers.includes(n));
+      if(numbers.every(n=>sequence.includes(n))){
+        const missing=sequence.filter(n=>!numbers.includes(n));
 
         if(missing.length===jokers) return true;
       }
@@ -327,69 +343,21 @@ function validGroup(group){
   return false;
 }
 
-function groupScore(group){
-  return group.reduce((sum,t)=>sum+(t.joker?0:t.num),0);
-}
-
-function splitGroups(tiles){
-  const candidates=[];
-  const maxSize=Math.min(13,tiles.length);
-
-  function combinationsOfSize(size,start,chosen){
-    if(chosen.length===size){
-      const group=chosen.map(i=>tiles[i]);
-
-      if(validGroup(group)) candidates.push(group);
-      return;
-    }
-
-    for(let i=start;i<tiles.length;i++){
-      chosen.push(i);
-      combinationsOfSize(size,i+1,chosen);
-      chosen.pop();
-    }
-  }
-
-  for(let size=3;size<=maxSize;size++){
-    combinationsOfSize(size,0,[]);
-  }
-
-  candidates.sort((a,b)=>
-    groupScore(b)-groupScore(a) || b.length-a.length
-  );
-
-  function search(remaining,result){
-    if(!remaining.length) return result;
-
-    const first=remaining[0];
-
-    for(const group of candidates){
-      if(!group.includes(first)) continue;
-      if(!group.every(t=>remaining.includes(t))) continue;
-
-      const next=remaining.filter(t=>!group.includes(t));
-      const answer=search(next,[...result,group]);
-
-      if(answer) return answer;
-    }
-
-    return null;
-  }
-
-  return search([...tiles],[])||[];
-}
-
-function sortGroup(group){
+function jokerValuesForGroup(group){
   const normal=group.filter(t=>!t.joker);
   const jokers=group.filter(t=>t.joker);
 
-  if(!jokers.length){
-    return [...group].sort((a,b)=>b.num-a.num);
-  }
+  if(!jokers.length) return [];
 
-  let jokerValues=[];
+  if(!normal.length) return jokers.map(()=>0);
+
   const numbers=normal.map(t=>t.num);
   const colors=normal.map(t=>t.color);
+
+  if(new Set(numbers).size===1 &&
+     new Set(colors).size===colors.length){
+    return jokers.map(()=>numbers[0]);
+  }
 
   if(new Set(colors).size===1 &&
      new Set(numbers).size===numbers.length){
@@ -399,25 +367,116 @@ function sortGroup(group){
         (_,i)=>start+i
       );
 
-      const missing=sequence.filter(n=>!numbers.includes(n));
+      if(numbers.every(n=>sequence.includes(n))){
+        const missing=sequence.filter(n=>!numbers.includes(n));
 
-      if(missing.length===jokers.length){
-        jokerValues=missing;
-        break;
+        if(missing.length===jokers.length){
+          return missing;
+        }
       }
     }
   }
 
-  if(!jokerValues.length && normal.length){
-    jokerValues=jokers.map(()=>normal[0].num);
+  return jokers.map(()=>0);
+}
+
+function groupScore(group){
+  const normal=group.filter(t=>!t.joker);
+  const jokerValues=jokerValuesForGroup(group);
+
+  return normal.reduce((sum,t)=>sum+t.num,0)+
+    jokerValues.reduce((sum,n)=>sum+n,0);
+}
+
+function splitGroups(tiles){
+  if(!Array.isArray(tiles) || tiles.length<3) return [];
+
+  const count=tiles.length;
+  const candidatesByFirst=Array.from({length:count},()=>[]);
+
+  function generate(start,chosen){
+    if(chosen.length>=3){
+      const group=chosen.map(i=>tiles[i]);
+
+      if(validGroup(group)){
+        const candidate={
+          indexes:[...chosen],
+          group,
+          score:groupScore(group)
+        };
+
+        chosen.forEach(index=>{
+          candidatesByFirst[index].push(candidate);
+        });
+      }
+    }
+
+    if(chosen.length===13) return;
+
+    for(let i=start;i<count;i++){
+      chosen.push(i);
+      generate(i+1,chosen);
+      chosen.pop();
+    }
   }
 
+  generate(0,[]);
+
+  for(const candidates of candidatesByFirst){
+    candidates.sort((a,b)=>
+      b.score-a.score || b.group.length-a.group.length
+    );
+  }
+
+  const memo=new Map();
+
+  function search(remaining){
+    if(!remaining.length) return [];
+
+    const key=remaining.join(",");
+
+    if(memo.has(key)) return memo.get(key);
+
+    const first=remaining[0];
+    const remainingSet=new Set(remaining);
+
+    for(const candidate of candidatesByFirst[first]){
+      if(!candidate.indexes.every(i=>remainingSet.has(i))) continue;
+
+      const used=new Set(candidate.indexes);
+      const next=remaining.filter(i=>!used.has(i));
+      const result=search(next);
+
+      if(result){
+        const answer=[candidate.group,...result];
+        memo.set(key,answer);
+        return answer;
+      }
+    }
+
+    memo.set(key,null);
+    return null;
+  }
+
+  return search(Array.from({length:count},(_,i)=>i))||[];
+}
+
+function sortGroup(group){
+  const jokerValues=jokerValuesForGroup(group);
   const values=new Map();
+  let jokerIndex=0;
 
-  normal.forEach(t=>values.set(t.id,t.num));
-  jokers.forEach((t,i)=>values.set(t.id,jokerValues[i]??0));
+  group.forEach(t=>{
+    if(t.joker){
+      values.set(t.id,jokerValues[jokerIndex++]??0);
+    }else{
+      values.set(t.id,t.num);
+    }
+  });
 
-  return [...group].sort((a,b)=>values.get(b.id)-values.get(a.id));
+  return [...group].sort((a,b)=>
+    values.get(b.id)-values.get(a.id)
+  );
 }
 
 async function createRoom(){
@@ -565,10 +624,8 @@ async function joinRoom(){
     }
 
     orderReserved=true;
-
     nickname=name;
     roomCode=code;
-
     enterRoom();
 
   }catch(error){
@@ -718,7 +775,7 @@ function renderLobby(){
   if(order.length<2){
     $("lobbyMessage").textContent="게임을 시작하려면 최소 2명이 필요합니다.";
   }else if(!allReady){
-    $("lobbyMessage").textContent="모든 참가자가 준비 완료해야 시작할 수 있습니다.";
+    $("lobbyMessage").textContent="모든 참가자가 준비 완료해야 합니다.";
   }else{
     $("lobbyMessage").textContent="모두 준비 완료! 방장이 게임을 시작할 수 있습니다.";
   }
@@ -748,7 +805,7 @@ async function saveSettings(){
       "설정이 변경되었습니다. 모든 참가자의 준비 상태가 초기화되었습니다.";
   }catch(error){
     console.error(error);
-    alert("설정을 변경하지 못했습니다. Firebase 규칙을 확인하세요.");
+    alert("설정을 변경하지 못했습니다. Firebase 규칙을 확인하세요.\n"+error.message);
   }
 }
 
@@ -762,7 +819,7 @@ async function toggleReady(){
     await roomRef().child("members/"+uid+"/ready").set(!member.ready);
   }catch(error){
     console.error(error);
-    alert("준비 상태 변경에 실패했습니다. Firebase 규칙을 확인하세요.");
+    alert("준비 상태 변경에 실패했습니다. Firebase 규칙을 확인하세요.\n"+error.message);
   }
 }
 
@@ -812,8 +869,8 @@ async function startOnlineGame(){
 
     await db.ref().update(updates);
   }catch(error){
-    console.error(error);
-    alert("게임을 시작하지 못했습니다. Firebase 규칙을 확인하세요.");
+    console.error("게임 시작 오류:",error);
+    alert("게임을 시작하지 못했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
   }
@@ -858,6 +915,24 @@ function saveTurnSnapshot(){
 }
 
 async function writeGameAndHand(game,hand){
+  if(!uid || !roomCode){
+    throw new Error("로그인 또는 방 정보가 없습니다.");
+  }
+
+  if(!auth.currentUser || auth.currentUser.uid!==uid){
+    throw new Error("Firebase 로그인 정보가 일치하지 않습니다.");
+  }
+
+  if(!Array.isArray(hand)){
+    throw new Error("손패 데이터 형식이 올바르지 않습니다.");
+  }
+
+  const memberSnapshot=await roomRef().child("members/"+uid).get();
+
+  if(!memberSnapshot.exists()){
+    throw new Error("현재 방의 참가자 정보가 없습니다.");
+  }
+
   const updates={};
 
   updates["rooms/"+roomCode+"/game"]=game;
@@ -871,9 +946,15 @@ async function submitHandTiles(){
   if(actionBusy || !isMyTurn() || !handLoaded) return;
 
   const indexes=[...selectedHand].sort((a,b)=>a-b);
+
+  if(!indexes.length) return;
+
   const chosen=indexes.map(i=>myHand[i]).filter(Boolean);
 
-  if(!chosen.length) return;
+  if(chosen.length!==indexes.length){
+    setMessage("선택한 타일 정보를 확인할 수 없습니다.");
+    return;
+  }
 
   const groups=splitGroups(chosen);
 
@@ -882,24 +963,40 @@ async function submitHandTiles(){
     return;
   }
 
+  const submittedIds=new Set(groups.flat().map(t=>t.id));
+
+  if(submittedIds.size!==chosen.length ||
+     !chosen.every(t=>submittedIds.has(t.id))){
+    setMessage("선택한 타일 전체를 유효한 조합으로 나눌 수 없습니다.");
+    return;
+  }
+
   actionBusy=true;
 
   try{
-    const score=groups.reduce((sum,g)=>sum+groupScore(g),0);
+    const score=groups.reduce(
+      (sum,g)=>sum+groupScore(g),0
+    );
+
     const opened=(roomData.game.opened||{})[uid]===true;
 
     if(!opened && score<30){
       const game=structuredClone(roomData.game);
 
-      if(game.deck.length){
+      if(game.deck && game.deck.length){
         const hand=[...myHand,game.deck.pop()];
+
+        await writeGameAndHand(game,hand);
+
         selectedHand.clear();
         selectedField=null;
 
-        await writeGameAndHand(game,hand);
         await finishMyTurn();
 
-        setMessage("최초 등록 30점 미달: 타일을 한 장 가져왔습니다.");
+        setMessage(
+          "최초 등록 30점 미달: "+score+
+          "점이므로 타일을 한 장 가져왔습니다."
+        );
       }else{
         await finishMyTurn();
         setMessage("최초 등록 30점 미달: 덱이 비어 있습니다.");
@@ -913,7 +1010,9 @@ async function submitHandTiles(){
     const game=structuredClone(roomData.game);
     const ordered=groups.map(sortGroup);
 
+    game.table=game.table||[];
     game.table.push(...ordered);
+
     game.opened=game.opened||{};
     game.opened[uid]=true;
 
@@ -921,21 +1020,34 @@ async function submitHandTiles(){
     const hand=myHand.filter(t=>!chosenIds.has(t.id));
 
     selectedHand.clear();
+    selectedField=null;
 
     if(!hand.length){
       game.winnerUid=uid;
+
       await writeGameAndHand(game,hand);
       await roomRef().child("status").set("finished");
+
+      setMessage("모든 타일을 제출했습니다. 승리했습니다!");
       return;
     }
 
     await writeGameAndHand(game,hand);
-    setMessage("타일을 성공적으로 제출했습니다.");
+
+    setMessage("타일 제출 성공! 등록 점수: "+score+"점");
+
   }catch(error){
-    console.error("타일 제출 오류: ", error);
-    setMessage("타일 제출 실패:" + (error.code||"UNKNOWN") +" / " + error.message);
+    console.error("타일 제출 오류:",error);
+
+    setMessage(
+      "타일 제출 실패 | "+
+      (error.code||"UNKNOWN")+" | "+
+      (error.message||String(error))
+    );
+
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -965,10 +1077,11 @@ async function moveFieldTile(){
     await writeGameAndHand(game,hand);
     setMessage("필드 타일을 내 패로 이동했습니다.");
   }catch(error){
-    console.error(error);
-    setMessage("필드 타일 이동에 실패했습니다.");
+    console.error("필드 타일 이동 오류:",error);
+    setMessage("필드 타일 이동 실패: "+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1026,10 +1139,11 @@ async function drawTile(){
 
     setMessage("타일 한 개를 가져왔습니다.");
   }catch(error){
-    console.error(error);
-    setMessage("타일을 가져오지 못했습니다.");
+    console.error("타일 가져오기 오류:",error);
+    setMessage("타일을 가져오지 못했습니다: "+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1045,10 +1159,11 @@ async function endTurn(){
     await finishMyTurn();
     setMessage("턴을 종료했습니다.");
   }catch(error){
-    console.error(error);
-    setMessage("턴을 종료하지 못했습니다.");
+    console.error("턴 종료 오류:",error);
+    setMessage("턴을 종료하지 못했습니다: "+error.message);
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1081,11 +1196,12 @@ async function restoreLastAction(){
 
     setMessage("마지막 조작을 복구했습니다.");
   }catch(error){
-    console.error(error);
+    console.error("복구 오류:",error);
     recoveryUsed=false;
-    setMessage("복구에 실패했습니다.");
+    setMessage("복구 실패: "+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1107,10 +1223,11 @@ async function resetTurn(){
 
     setMessage("이전 플레이어 상태로 복원했습니다.");
   }catch(error){
-    console.error(error);
-    setMessage("상태 복원에 실패했습니다.");
+    console.error("상태 복원 오류:",error);
+    setMessage("상태 복원 실패: "+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1285,7 +1402,7 @@ async function sendChat(inputId){
     });
   }catch(error){
     console.error(error);
-    alert("메시지를 전송하지 못했습니다.");
+    alert("메시지를 전송하지 못했습니다: "+error.message);
   }
 }
 
@@ -1313,7 +1430,6 @@ function renderChat(messages){
       text.textContent=item.text||"";
 
       line.append(name,text);
-      line.appendChild(text);
       container.appendChild(line);
     });
 
@@ -1354,7 +1470,7 @@ async function leaveRoom(){
   }catch(error){
     console.error(error);
     leavingRoom=false;
-    alert("방을 나가는 도중 오류가 발생했습니다. Firebase 규칙을 확인하세요.");
+    alert("방을 나가는 도중 오류가 발생했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
   }
 }
 
