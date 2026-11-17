@@ -928,6 +928,18 @@ async function submitHandTiles(){
     return;
   }
 
+  const usedIds=groups.flat().map(t=>t.id);
+  const chosenIds=chosen.map(t=>t.id);
+
+  if(
+    usedIds.length!==chosenIds.length ||
+    new Set(usedIds).size!==usedIds.length ||
+    !chosenIds.every(id=>usedIds.includes(id))
+  ){
+    setMessage("타일 조합을 확인하는 과정에서 오류가 발생했습니다.");
+    return;
+  }
+
   actionBusy=true;
 
   try{
@@ -936,6 +948,7 @@ async function submitHandTiles(){
 
     if(!opened && score<30){
       const game=structuredClone(roomData.game);
+      game.table=Array.isArray(game.table)?game.table:[];
 
       if(game.deck.length){
         const hand=[...myHand,game.deck.pop()];
@@ -957,14 +970,16 @@ async function submitHandTiles(){
     saveUndoSnapshot();
 
     const game=structuredClone(roomData.game);
+    game.table=Array.isArray(game.table)?game.table:[];
+    game.opened=game.opened||{};
+
     const ordered=groups.map(sortGroup);
 
     game.table.push(...ordered);
-    game.opened=game.opened||{};
     game.opened[uid]=true;
 
-    const chosenIds=new Set(chosen.map(t=>t.id));
-    const hand=myHand.filter(t=>!chosenIds.has(t.id));
+    const chosenIdSet=new Set(chosenIds);
+    const hand=myHand.filter(t=>!chosenIdSet.has(t.id));
 
     selectedHand.clear();
 
@@ -982,14 +997,19 @@ async function submitHandTiles(){
 
     await writeGameAndHand(game,hand);
     setMessage("타일을 성공적으로 제출했습니다.");
+
   }catch(error){
-    console.error("타일 제출 오류: ", error);
-    setMessage("타일 제출 실패: "+(error.code||"UNKNOWN")+" / "+error.message);
+    console.error("타일 제출 오류:",error);
+    setMessage(
+      "타일 제출 실패:"+
+      (error.code||"UNKNOWN")+
+      " / "+
+      (error.message||String(error))
+    );
   }finally{
     actionBusy=false;
   }
 }
-
 async function surrenderGame(){
   if(actionBusy || !roomData || !roomData.game || roomData.game.result) return;
 
