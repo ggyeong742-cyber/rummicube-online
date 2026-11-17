@@ -548,7 +548,7 @@ $("result").textContent=game.result||"";
 
 $("returnButton").classList.toggle("hidden",!(game.result&&isHost()));
 
-$("drawButton").disabled=!isMyTurn()||!!game.result||!!game.opened?.[uid];
+$("drawButton").disabled=!isMyTurn()||!!game.result;
 $("endTurnButton").disabled=!isMyTurn()||!!game.result;
 $("surrenderButton").disabled=!isMyTurn()||!!game.result;
 $("newMeldButton").disabled=!isMyTurn()||!!game.result;
