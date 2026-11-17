@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -10,1736 +9,797 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#176b48;color:white;font-family:Arial,"Malgun Gothic",sans-serif}
+body{margin:0;background:#123c31;color:#fff;font-family:Arial,sans-serif}
 button,input,select{font:inherit}
-button{border:0;border-radius:7px;padding:11px 16px;cursor:pointer;font-weight:bold}
-button:disabled{opacity:.45;cursor:not-allowed}
-input,select{padding:11px;border-radius:7px;border:1px solid #aaa;background:#fff;color:#222;min-width:0}
-#app{max-width:1250px;margin:auto;padding:18px}
-.panel{background:#205a40;border:1px solid #a5d6a7;border-radius:12px;padding:18px;margin-bottom:15px}
-h1{text-align:center;font-size:38px;margin:25px 0}
-h2{margin-top:0}
+button{border:0;border-radius:8px;padding:10px 16px;background:#e6b94b;color:#222;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
+input{padding:11px;border:1px solid #aaa;border-radius:7px}
+.hidden{display:none!important}
+.screen{width:min(1100px,96%);margin:25px auto}
+.panel{background:#1c5545;border-radius:12px;padding:20px;margin-bottom:16px}
+h1,h2,h3{margin-top:0}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .column{display:flex;flex-direction:column;gap:10px}
 .center{text-align:center}
-.primary{background:#f9a825;color:#222}
-.blue{background:#1565c0;color:white}
-.green{background:#2e7d32;color:white}
-.red{background:#c62828;color:white}
-.gray{background:#455a64;color:white}
-.small{font-size:13px;color:#d7eee1}
-.hidden{display:none!important}
-#menu,#lobby,#game{max-width:1100px;margin:25px auto}
-#menu .panel{max-width:650px;margin:15px auto}
-#menu input{width:100%}
-#menu button{width:100%}
-#players{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
-.player{background:#174a35;padding:13px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
-#chatMessages{height:190px;overflow-y:auto;background:#143e2e;padding:12px;border-radius:8px;margin-bottom:10px}
-.chatline{padding:4px 0;overflow-wrap:anywhere}
-.chatname{color:#ffeb3b;font-weight:bold}
-#chatInput,#gameChatInput{flex:1}
-#board{background:#12432f;border:2px solid #a5d6a7;border-radius:10px;min-height:300px;padding:15px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px}
-.group{display:flex;gap:3px;align-items:center;background:#205a40;padding:7px;border-radius:7px;min-height:50px}
-.tile{width:39px;height:49px;background:#fffdf2;border:1px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;cursor:pointer;user-select:none;color:#222}
-.tile.small{width:27px;height:34px;font-size:15px}
-.tile.selected{transform:translateY(-9px);outline:3px solid #ffeb3b}
-.tile.joker{color:#7e57c2}
-.tile.redtile{color:#e53935}
-.tile.bluetile{color:#1e88e5}
-.tile.blacktile{color:#292929}
-.tile.orangetile{color:#f9a825}
-#hand{display:flex;flex-wrap:wrap;gap:6px;min-height:80px;padding:12px;background:#123d2c;border-radius:8px}
-#gameButtons{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-#gameMessage{background:#205a40;padding:12px;border-radius:7px;min-height:42px}
-#topInfo{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-#gameResult{background:#143e2e;border:2px solid #ffeb3b;border-radius:10px;padding:22px;margin:15px 0;text-align:center}
-#gameResult h2{color:#ffeb3b;font-size:30px;margin:0 0 12px}
-#gameResult p{font-size:18px;margin:10px 0 18px}
-@media(max-width:650px){
-#app{padding:8px}
-h1{font-size:29px}
-.panel{padding:12px}
-.tile{width:32px;height:42px;font-size:19px}
-.tile.small{width:24px;height:30px;font-size:13px}
-#board{min-height:220px;padding:8px}
+#menu{max-width:500px;margin:70px auto}
+#menu input{width:100%;margin-bottom:10px}
+.member{display:flex;justify-content:space-between;padding:10px;background:#286653;border-radius:7px;margin:6px 0}
+#gameTop{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#players{display:flex;gap:10px;flex-wrap:wrap}
+.player{background:#286653;padding:10px 15px;border-radius:8px}
+.player.active{outline:3px solid #f1c94c}
+#board{background:#0d3028;border:2px solid #568675;border-radius:12px;padding:15px;min-height:230px}
+.meld{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:9px;margin:7px 0;background:#1b493d;border:1px dashed #73988b;border-radius:8px;min-height:65px}
+.meld.drop{background:#286653}
+.tile{width:43px;height:58px;border-radius:6px;background:#f7f3e8;display:flex;align-items:center;justify-content:center;font-size:25px;font-weight:bold;box-shadow:0 2px 4px #0008;cursor:grab;user-select:none;position:relative}
+.tile.red{color:#d52c32}
+.tile.blue{color:#1768bd}
+.tile.black{color:#222}
+.tile.orange{color:#e47a16}
+.tile.joker{color:#8b38ad;font-size:16px}
+.tile.dragging{opacity:.35}
+.tile.selected{outline:3px solid #f2d04f;transform:translateY(-5px)}
+#hand{display:flex;gap:6px;flex-wrap:wrap;min-height:85px;padding:12px;background:#0d3028;border-radius:10px}
+#hand.drop{outline:3px dashed #e6b94b}
+#chatMessages{height:130px;overflow-y:auto;background:#10372e;padding:10px;border-radius:7px}
+.chatLine{padding:3px 0;overflow-wrap:anywhere}
+#gameMessage{padding:10px;background:#285d4c;border-radius:8px;margin:10px 0}
+#result{font-size:24px;font-weight:bold;text-align:center;padding:15px}
+.small{font-size:13px;color:#ddd}
+#settings{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#settings select{padding:9px;border-radius:7px}
+@media(max-width:600px){
+ .tile{width:35px;height:49px;font-size:21px}
+ .screen{width:94%;margin:12px auto}
+ .panel{padding:13px}
 }
 </style>
 </head>
 <body>
-<div id="app">
-<h1>RUMMIKUB</h1>
 
-<section id="menu">
-<div class="panel column">
-<h2>방 만들기</h2>
-<label>닉네임</label>
-<input id="hostName" maxlength="12" placeholder="사용할 닉네임">
-<label>직접 정할 방 코드 (4~8자)</label>
-<input id="createCode" maxlength="8" placeholder="예: RUMMI7">
+<section id="menu" class="screen panel">
+<h1 class="center">온라인 루미큐브</h1>
+<input id="nickname" maxlength="12" placeholder="닉네임">
+<button id="createRoom" style="width:100%;margin-bottom:10px">방 만들기</button>
+<input id="roomCodeInput" maxlength="6" placeholder="방 코드">
+<button id="joinRoom" style="width:100%">방 참가</button>
+<p id="menuMessage" class="small center"></p>
+</section>
+
+<section id="lobby" class="screen hidden">
+<div class="panel">
+<h2>대기실</h2>
+<div class="row">
+<div>방 코드: <strong id="roomCodeText"></strong></div>
+<button id="copyCode">코드 복사</button>
+</div>
+<h3>참가자</h3>
+<div id="memberList"></div>
+<div id="settings">
 <label>조커 개수</label>
 <select id="jokerSetting">
-<option value="0">상 - 조커 0개</option>
-<option value="1" selected>중 - 조커 1개</option>
-<option value="2">하 - 조커 2개</option>
+<option value="2">2개</option>
+<option value="1">1개</option>
+<option value="0">0개</option>
 </select>
-<button class="primary" id="createButton">이 코드로 방 만들기</button>
 </div>
-
-<div class="panel column">
-<h2>방 참가하기</h2>
-<label>닉네임</label>
-<input id="joinName" maxlength="12" placeholder="사용할 닉네임">
-<label>방 코드</label>
-<input id="joinCode" maxlength="8" placeholder="초대받은 방 코드">
-<button class="blue" id="joinButton">방 참가</button>
+<div class="row" style="margin-top:15px">
+<button id="readyButton">준비</button>
+<button id="startButton">게임 시작</button>
+<button id="leaveButton">방 나가기</button>
 </div>
-<p class="center small">한 방에 2~4명이 참가할 수 있습니다.</p>
+</div>
+<div class="panel">
+<h3>대기실 채팅</h3>
+<div id="lobbyChat" class="chatMessages"></div>
+<div class="row">
+<input id="lobbyChatInput" placeholder="메시지 입력" style="flex:1">
+<button id="lobbyChatSend">전송</button>
+</div>
+</div>
 </section>
 
-<section id="lobby" class="hidden">
+<section id="game" class="screen hidden">
 <div class="panel">
-<div class="row" style="justify-content:space-between">
-<h2>대기실</h2>
-<button class="red" id="leaveButton">방 나가기</button>
-</div>
-<p>방 코드: <strong id="lobbyCode" style="color:#ffeb3b;font-size:24px"></strong></p>
-<div class="row">
-<h3>참가자</h3>
-<span id="playerCount"></span>
+<div id="gameTop">
+<h2>루미큐브</h2>
+<div id="turnInfo"></div>
 </div>
 <div id="players"></div>
-<div class="panel" style="margin-top:18px">
-<h3>게임 설정</h3>
-<p id="settingText"></p>
-<div id="hostSettings" class="row">
-<label for="lobbyJokers">조커 개수</label>
-<select id="lobbyJokers">
-<option value="0">상 - 0개</option>
-<option value="1">중 - 1개</option>
-<option value="2">하 - 2개</option>
-</select>
-<button class="blue" id="saveSettings">설정 변경</button>
-</div>
-<p id="settingsNotice" class="small"></p>
-</div>
-<div class="row">
-<button class="green" id="readyButton">준비 완료</button>
-<button class="primary" id="startButton">게임 시작</button>
-</div>
-<p id="lobbyMessage" class="small"></p>
+<div id="gameMessage">게임이 시작되었습니다.</div>
+<div id="result"></div>
+<button id="returnButton" class="hidden">대기실로 돌아가기</button>
 </div>
 
 <div class="panel">
-<h3>방 채팅</h3>
-<div id="chatMessages"></div>
-<div class="row">
-<input id="chatInput" maxlength="200" placeholder="메시지를 입력하세요">
-<button class="blue" id="sendChat">전송</button>
-</div>
-</div>
-</section>
-
-<section id="game" class="hidden">
-<div class="panel">
-<div id="topInfo">
-<strong id="gameRoomInfo"></strong>
-<strong id="turnInfo"></strong>
-<strong id="deckInfo"></strong>
-</div>
-<h3>상대 플레이어</h3>
-<div id="opponents" class="row"></div>
-<h3>필드</h3>
+<h3>게임 필드</h3>
 <div id="board"></div>
-<div id="gameMessage"></div>
-
-<div id="gameResult" class="hidden">
-<h2 id="resultTitle">게임 종료</h2>
-<p id="resultDescription"></p>
-<p id="returnNotice" class="small"></p>
-<button class="primary hidden" id="returnLobbyButton">대기실로 돌아가기</button>
+<div class="row" style="margin-top:10px">
+<button id="newMeldButton">새 조합 만들기</button>
+<button id="restoreButton">턴 초기화</button>
+</div>
+<p class="small">타일을 드래그하여 다른 조합으로 이동하거나 손패로 가져올 수 있습니다. 조합이 완성되지 않은 상태는 턴 종료 시 검사합니다.</p>
 </div>
 
-<div id="gameButtons">
-<button class="red" id="undoButton">필드 1회 복구</button>
-<button class="blue" id="resetButton">이전 플레이어 상태로 리셋</button>
-<button class="green" id="drawButton">타일 가져오기</button>
-<button class="gray" id="endButton">턴 넘기기</button>
-<button class="red" id="surrenderButton">항복</button>
-</div>
-<h3>내 패</h3>
+<div class="panel">
+<h3>내 손패</h3>
 <div id="hand"></div>
-<p class="small">타일을 클릭해 선택하고 Enter를 누르면 제출합니다. 필드 타일을 선택한 뒤 Enter를 누르면 내 패로 가져옵니다.</p>
+<div class="row" style="margin-top:12px">
+<button id="drawButton">타일 가져오기</button>
+<button id="endTurnButton">턴 종료</button>
+<button id="surrenderButton">항복</button>
+</div>
 </div>
 
 <div class="panel">
 <h3>게임 채팅</h3>
-<div id="gameChatMessages" style="height:130px;overflow-y:auto;background:#143e2e;padding:10px;border-radius:8px"></div>
+<div id="gameChat" class="chatMessages"></div>
 <div class="row">
-<input id="gameChatInput" maxlength="200" placeholder="메시지를 입력하세요">
-<button class="blue" id="gameSendChat">전송</button>
+<input id="gameChatInput" placeholder="메시지 입력" style="flex:1">
+<button id="gameChatSend">전송</button>
 </div>
 </div>
 </section>
-</div>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAqpthC7lPgp-bYPoo19JCn4ABQzvOrRJY",
-  authDomain: "rummikub-43f70.firebaseapp.com",
-  databaseURL: "https://rummikub-43f70-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "rummikub-43f70",
-  storageBucket: "rummikub-43f70.firebasestorage.app",
-  messagingSenderId: "830412434067",
-  appId: "1:830412434067:web:5c1b2bff2e58cfc611bb66",
-  measurementId: "G-ZDWE787HCV"
+const firebaseConfig={
+apiKey:"AIzaSyAqpthC7lPgp-bYPoo19JCn4ABQzvOrRJY",
+authDomain:"rummikub-43f70.firebaseapp.com",
+databaseURL:"https://rummikub-43f70-default-rtdb.asia-southeast1.firebasedatabase.app",
+projectId:"rummikub-43f70",
+storageBucket:"rummikub-43f70.firebasestorage.app",
+messagingSenderId:"830412434067",
+appId:"1:830412434067:web:5c1b2bff2e58cfc611bb66",
+measurementId:"G-ZDWE787HCV"
 };
 
 firebase.initializeApp(firebaseConfig);
-
 const auth=firebase.auth();
 const db=firebase.database();
 
-const COLORS={
-  "빨강":"redtile",
-  "파랑":"bluetile",
-  "검정":"blacktile",
-  "주황":"orangetile"
-};
-
-const COLOR_ORDER=["빨강","파랑","검정","주황"];
+const $=id=>document.getElementById(id);
+const COLORS=["red","blue","black","orange"];
+const COLOR_NAMES={red:"빨강",blue:"파랑",black:"검정",orange:"주황"};
 
 let uid=null;
 let nickname="";
 let roomCode="";
-let roomData=null;
-let myHand=[];
-let selectedHand=new Set();
-let selectedField=null;
-let undoSnapshot=null;
-let turnSnapshot=null;
-let recoveryUsed=false;
-let previousTurn=null;
-let listeners=[];
+let room=null;
+let hand=[];
+let table=[];
+let deck=[];
+let originalHand=[];
+let originalTable=[];
+let selectedDrag=null;
 let currentScreen="menu";
-let disconnectArmed=false;
-let leavingRoom=false;
-let actionBusy=false;
-let handLoaded=false;
-let authPromise=null;
-let handListenerRef=null;
-let handListenerCallback=null;
-
-const $=id=>document.getElementById(id);
-const roomRef=()=>db.ref("rooms/"+roomCode);
-const handsRef=()=>db.ref("privateHands/"+roomCode);
-const isHost=()=>roomData && roomData.hostUid===uid;
-const memberIds=()=>normalizeArray(roomData && roomData.order);
-const isMyTurn=()=>roomData && roomData.game && roomData.game.turnUid===uid && !roomData.game.winnerUid && !roomData.game.result;
-
-function normalizeArray(value){
-  if(Array.isArray(value)) return value;
-  if(!value || typeof value!=="object") return [];
-
-  const keys=Object.keys(value);
-
-  if(!keys.every(key=>/^\d+$/.test(key))) return [];
-
-  return keys
-    .sort((a,b)=>Number(a)-Number(b))
-    .map(key=>value[key])
-    .filter(value=>value!==null && value!==undefined);
-}
+let roomListener=null;
+let handListener=null;
+let chatListener=null;
+let actionLock=false;
+let hasOpened=false;
 
 function showScreen(name){
-  currentScreen=name;
-  $("menu").classList.toggle("hidden",name!=="menu");
-  $("lobby").classList.toggle("hidden",name!=="lobby");
-  $("game").classList.toggle("hidden",name!=="game");
+currentScreen=name;
+$("menu").classList.toggle("hidden",name!=="menu");
+$("lobby").classList.toggle("hidden",name!=="lobby");
+$("game").classList.toggle("hidden",name!=="game");
 }
 
-function stopListeners(){
-  for(const [ref,event,callback] of listeners){
-    ref.off(event,callback);
-  }
-  listeners=[];
+function randomCode(){
+return Math.random().toString(36).substring(2,8).toUpperCase();
+}
+
+function makeDeck(jokers){
+const result=[];
+let id=0;
+for(let color of COLORS){
+for(let n=1;n<=13;n++){
+for(let copy=0;copy<2;copy++){
+result.push({id:"t"+id++,color,num:n,joker:false});
+}
+}
+}
+for(let i=0;i<jokers;i++){
+result.push({id:"j"+id++,joker:true});
+}
+for(let i=result.length-1;i>0;i--){
+const j=Math.floor(Math.random()*(i+1));
+[result[i],result[j]]=[result[j],result[i]];
+}
+return result;
+}
+
+function shuffleTake(cards,count){
+return cards.splice(0,count);
+}
+
+function normalize(value){
+if(Array.isArray(value))return value;
+if(value&&typeof value==="object")return Object.keys(value).sort().map(k=>value[k]);
+return [];
+}
+
+function listenRoom(){
+if(roomListener)roomListener.off();
+roomListener=db.ref("rooms/"+roomCode);
+roomListener.on("value",snap=>{
+if(!snap.exists()){
+alert("방이 삭제되었습니다.");
+cleanup();
+showScreen("menu");
+return;
+}
+room=snap.val();
+if(room.status==="waiting"){
+if(currentScreen!=="lobby"){
+stopHandListener();
+hand=[];
+table=[];
+showScreen("lobby");
+}
+renderLobby();
+}else{
+if(currentScreen!=="game"){
+showScreen("game");
+startHandListener();
+}
+renderGame();
+}
+});
+}
+
+function startHandListener(){
+if(handListener)handListener.off();
+handListener=db.ref("privateHands/"+roomCode+"/"+uid);
+handListener.on("value",snap=>{
+hand=normalize(snap.val());
+renderGame();
+});
 }
 
 function stopHandListener(){
-  if(handListenerRef && handListenerCallback){
-    handListenerRef.off("value",handListenerCallback);
-  }
-
-  handListenerRef=null;
-  handListenerCallback=null;
+if(handListener){
+handListener.off();
+handListener=null;
+}
 }
 
-function listen(ref,event,callback){
-  ref.on(event,callback);
-  listeners.push([ref,event,callback]);
+function cleanup(){
+if(roomListener)roomListener.off();
+if(chatListener)chatListener.off();
+stopHandListener();
+roomListener=null;
+chatListener=null;
+room=null;
+roomCode="";
+hand=[];
+table=[];
+deck=[];
 }
 
-function normalizeCode(value){
-  return value.trim().toUpperCase();
-}
-
-async function login(){
-  if(auth.currentUser){
-    uid=auth.currentUser.uid;
-    return uid;
-  }
-
-  if(!authPromise){
-    authPromise=auth.signInAnonymously();
-  }
-
-  try{
-    const result=await authPromise;
-    uid=result.user.uid;
-    return uid;
-  }catch(error){
-    authPromise=null;
-    throw error;
-  }
-}
-
-function makeTile(color,num,joker=false){
-  return {
-    id:crypto.randomUUID(),
-    color,
-    num,
-    joker
-  };
-}
-
-function makeDeck(jokerCount){
-  const deck=[];
-
-  for(const color of Object.keys(COLORS)){
-    for(let num=1;num<=13;num++){
-      for(let copy=0;copy<2;copy++){
-        deck.push(makeTile(color,num));
-      }
-    }
-  }
-
-  for(let i=0;i<jokerCount;i++){
-    deck.push(makeTile(null,0,true));
-  }
-
-  for(let i=deck.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [deck[i],deck[j]]=[deck[j],deck[i]];
-  }
-
-  return deck;
-}
-
-function resolveGroup(group){
-  if(!Array.isArray(group) || group.length<3 || group.length>13){
-    return null;
-  }
-
-  const normal=group.filter(tile=>tile && tile.joker!==true);
-  const jokers=group.filter(tile=>tile && tile.joker===true);
-
-  if(!normal.length) return null;
-  if(normal.length+jokers.length!==group.length) return null;
-
-  const numbers=normal.map(tile=>Number(tile.num));
-  const colors=normal.map(tile=>tile.color);
-
-  if(numbers.some(number=>!Number.isInteger(number) || number<1 || number>13)){
-    return null;
-  }
-
-  if(colors.some(color=>!COLOR_ORDER.includes(color))){
-    return null;
-  }
-
-  const assignments={};
-
-  if(
-    group.length<=4 &&
-    new Set(numbers).size===1 &&
-    new Set(colors).size===colors.length &&
-    normal.length+jokers.length<=4
-  ){
-    const number=numbers[0];
-    const missingColors=COLOR_ORDER.filter(color=>!colors.includes(color));
-
-    if(missingColors.length<jokers.length) return null;
-
-    normal.forEach(tile=>{
-      assignments[tile.id]={
-        num:number,
-        color:tile.color
-      };
-    });
-
-    jokers.forEach((tile,index)=>{
-      assignments[tile.id]={
-        num:number,
-        color:missingColors[index]
-      };
-    });
-
-    return {
-      type:"group",
-      assignments
-    };
-  }
-
-  if(
-    new Set(colors).size!==1 ||
-    new Set(numbers).size!==numbers.length
-  ){
-    return null;
-  }
-
-  const color=colors[0];
-
-  for(let start=1;start<=14-group.length;start++){
-    const sequence=Array.from(
-      {length:group.length},
-      (_,index)=>start+index
-    );
-
-    if(!numbers.every(number=>sequence.includes(number))){
-      continue;
-    }
-
-    const missing=sequence.filter(number=>!numbers.includes(number));
-
-    if(missing.length!==jokers.length){
-      continue;
-    }
-
-    normal.forEach(tile=>{
-      assignments[tile.id]={
-        num:Number(tile.num),
-        color:tile.color
-      };
-    });
-
-    jokers.forEach((tile,index)=>{
-      assignments[tile.id]={
-        num:missing[index],
-        color
-      };
-    });
-
-    return {
-      type:"run",
-      assignments
-    };
-  }
-
-  return null;
-}
-
-function validGroup(group){
-  return resolveGroup(group)!==null;
-}
-
-function groupScore(group){
-  const resolved=resolveGroup(group);
-
-  if(!resolved) return 0;
-
-  return group.reduce((sum,tile)=>{
-    return sum+(resolved.assignments[tile.id]?.num||0);
-  },0);
-}
-
-function splitGroups(tiles){
-  const n=tiles.length;
-
-  if(n<3) return [];
-
-  const candidatesByIndex=Array.from({length:n},()=>[]);
-
-  function build(start,chosen){
-    if(chosen.length>=3){
-      const group=chosen.map(index=>tiles[index]);
-      const resolved=resolveGroup(group);
-
-      if(resolved){
-        const candidate={
-          indices:[...chosen],
-          group,
-          score:groupScore(group)
-        };
-
-        for(const index of chosen){
-          candidatesByIndex[index].push(candidate);
-        }
-      }
-    }
-
-    if(chosen.length===13) return;
-
-    for(let i=start;i<n;i++){
-      chosen.push(i);
-      build(i+1,chosen);
-      chosen.pop();
-    }
-  }
-
-  build(0,[]);
-
-  for(const list of candidatesByIndex){
-    list.sort((a,b)=>
-      b.score-a.score || b.indices.length-a.indices.length
-    );
-  }
-
-  const memo=new Map();
-
-  function search(remaining){
-    if(!remaining.length) return [];
-
-    const key=remaining.join(",");
-
-    if(memo.has(key)) return memo.get(key);
-
-    const first=remaining[0];
-    const remainingSet=new Set(remaining);
-
-    for(const candidate of candidatesByIndex[first]){
-      if(!candidate.indices.every(index=>remainingSet.has(index))){
-        continue;
-      }
-
-      const used=new Set(candidate.indices);
-      const next=remaining.filter(index=>!used.has(index));
-      const result=search(next);
-
-      if(result!==null){
-        const answer=[candidate.group,...result];
-        memo.set(key,answer);
-        return answer;
-      }
-    }
-
-    memo.set(key,null);
-    return null;
-  }
-
-  return search(Array.from({length:n},(_,index)=>index))||[];
-}
-
-function sortGroup(group){
-  const resolved=resolveGroup(group);
-
-  if(!resolved) return [...group];
-
-  if(resolved.type==="run"){
-    return [...group].sort((a,b)=>
-      resolved.assignments[a.id].num-resolved.assignments[b.id].num
-    );
-  }
-
-  return [...group].sort((a,b)=>
-    COLOR_ORDER.indexOf(resolved.assignments[a.id].color)-
-    COLOR_ORDER.indexOf(resolved.assignments[b.id].color)
-  );
+async function enterRoom(code){
+roomCode=code;
+listenRoom();
+listenChat();
 }
 
 async function createRoom(){
-  if(actionBusy) return;
-
-  actionBusy=true;
-  $("createButton").disabled=true;
-
-  try{
-    await login();
-
-    const name=$("hostName").value.trim();
-    const code=normalizeCode($("createCode").value);
-    const jokerCount=Number($("jokerSetting").value);
-
-    if(!name){
-      alert("닉네임을 입력하세요.");
-      return;
-    }
-
-    if(!/^[A-Z0-9]{4,8}$/.test(code)){
-      alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
-      return;
-    }
-
-    const ref=db.ref("rooms/"+code);
-
-    const initialRoom={
-      hostUid:uid,
-      settings:{jokerCount},
-      status:"waiting",
-      createdAt:firebase.database.ServerValue.TIMESTAMP,
-      members:{
-        [uid]:{
-          nickname:name,
-          ready:false,
-          joinedAt:Date.now(),
-          handCount:0
-        }
-      },
-      order:[uid],
-      game:null,
-      chat:{}
-    };
-
-    await ref.set(initialRoom);
-
-    nickname=name;
-    roomCode=code;
-    enterRoom();
-  }catch(error){
-    console.error("방 생성 오류:",error);
-    alert("방 생성 실패\n오류 코드: "+(error.code||"UNKNOWN")+"\n오류 내용: "+error.message);
-  }finally{
-    actionBusy=false;
-    $("createButton").disabled=false;
-  }
+if(actionLock)return;
+nickname=$("nickname").value.trim();
+if(!nickname){alert("닉네임을 입력해 주세요.");return;}
+actionLock=true;
+try{
+let code=randomCode();
+while((await db.ref("rooms/"+code).once("value")).exists())code=randomCode();
+const data={
+hostUid:uid,
+status:"waiting",
+settings:{jokerCount:2},
+members:{[uid]:{nickname,ready:false,handCount:0}},
+order:[uid],
+createdAt:Date.now()
+};
+await db.ref("rooms/"+code).set(data);
+await enterRoom(code);
+}catch(e){
+alert("방 생성 실패: "+e.message);
+}finally{actionLock=false;}
 }
 
 async function joinRoom(){
-  if(actionBusy) return;
-
-  actionBusy=true;
-  $("joinButton").disabled=true;
-
-  let memberReserved=false;
-  let orderReserved=false;
-  let code="";
-
-  try{
-    await login();
-
-    const name=$("joinName").value.trim();
-    code=normalizeCode($("joinCode").value);
-
-    if(!name){
-      alert("닉네임을 입력하세요.");
-      return;
-    }
-
-    if(!/^[A-Z0-9]{4,8}$/.test(code)){
-      alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
-      return;
-    }
-
-    const ref=db.ref("rooms/"+code);
-    const snapshot=await ref.get();
-
-    if(!snapshot.exists()){
-      alert("존재하지 않는 방입니다.");
-      return;
-    }
-
-    const data=snapshot.val();
-
-    if(data.status!=="waiting"){
-      alert("이미 게임이 시작된 방입니다.");
-      return;
-    }
-
-    if(!data.members || !Array.isArray(data.order)){
-      alert("방 데이터가 올바르지 않습니다.");
-      return;
-    }
-
-    if(data.members[uid]){
-      nickname=name;
-      roomCode=code;
-      enterRoom();
-      return;
-    }
-
-    if(data.order.length>=4){
-      alert("방 인원이 가득 찼습니다.");
-      return;
-    }
-
-    await ref.child("members/"+uid).set({
-      nickname:name,
-      ready:false,
-      joinedAt:Date.now(),
-      handCount:0
-    });
-
-    memberReserved=true;
-
-    const orderRef=ref.child("order");
-
-    const result=await orderRef.transaction(current=>{
-      const currentOrder=normalizeArray(current);
-
-      if(currentOrder.includes(uid)){
-        return currentOrder;
-      }
-
-      if(currentOrder.length>=4){
-        return;
-      }
-
-      return [...currentOrder,uid];
-    });
-
-    if(!result.committed){
-      throw new Error("방 인원이 가득 찼거나 참가자 목록 갱신에 실패했습니다.");
-    }
-
-    orderReserved=true;
-
-    nickname=name;
-    roomCode=code;
-
-    enterRoom();
-
-  }catch(error){
-    console.error("방 참가 오류:",error);
-
-    if(code){
-      try{
-        const ref=db.ref("rooms/"+code);
-
-        if(orderReserved){
-          await ref.child("order").transaction(current=>{
-            return normalizeArray(current).filter(id=>id!==uid);
-          });
-        }
-
-        if(memberReserved){
-          await ref.child("members/"+uid).remove();
-        }
-      }catch(cleanupError){
-        console.error("참가 취소 처리 오류:",cleanupError);
-      }
-    }
-
-    alert(
-      "방 참가에 실패했습니다.\n"+
-      "오류 코드: "+(error.code||"UNKNOWN")+"\n"+
-      "오류 내용: "+error.message
-    );
-
-  }finally{
-    actionBusy=false;
-    $("joinButton").disabled=false;
-  }
+if(actionLock)return;
+nickname=$("nickname").value.trim();
+const code=$("roomCodeInput").value.trim().toUpperCase();
+if(!nickname||!code){alert("닉네임과 방 코드를 입력해 주세요.");return;}
+actionLock=true;
+try{
+const ref=db.ref("rooms/"+code);
+const snap=await ref.once("value");
+if(!snap.exists())throw new Error("존재하지 않는 방입니다.");
+const data=snap.val();
+if(data.status!=="waiting")throw new Error("이미 게임이 시작된 방입니다.");
+const order=normalize(data.order);
+if(order.length>=4)throw new Error("방이 가득 찼습니다.");
+if(data.members&&data.members[uid])throw new Error("이미 참가한 방입니다.");
+const updates={};
+updates["members/"+uid]={nickname,ready:false,handCount:0};
+updates["order"]=order.concat(uid);
+await ref.update(updates);
+await enterRoom(code);
+}catch(e){
+alert(e.message);
+}finally{actionLock=false;}
 }
 
-async function armHostDisconnectCleanup(){
-  if(disconnectArmed || !roomCode || !isHost()) return;
-
-  disconnectArmed=true;
-
-  const code=roomCode;
-  const cleanup={};
-
-  cleanup["rooms/"+code]=null;
-  cleanup["privateHands/"+code]=null;
-
-  try{
-    await db.ref().onDisconnect().update(cleanup);
-  }catch(error){
-    disconnectArmed=false;
-    console.error(error);
-    $("lobbyMessage").textContent="자동 방 삭제 예약에 실패했습니다. Firebase 규칙을 확인하세요.";
-  }
+function isHost(){
+return room&&room.hostUid===uid;
 }
 
-function enterRoom(){
-  stopListeners();
-  stopHandListener();
-
-  disconnectArmed=false;
-  leavingRoom=false;
-  actionBusy=false;
-  handLoaded=false;
-
-  showScreen("lobby");
-  $("lobbyCode").textContent=roomCode;
-
-  listen(roomRef(),"value",snapshot=>{
-    if(!snapshot.exists()){
-      if(!leavingRoom) alert("방장이 나갔거나 방이 삭제되었습니다.");
-      leaveLocal();
-      return;
-    }
-
-    roomData=snapshot.val();
-
-    if(!roomData.members || !roomData.members[uid]){
-      if(!leavingRoom) alert("방에서 나갔습니다.");
-      leaveLocal();
-      return;
-    }
-
-    if(isHost()) armHostDisconnectCleanup();
-
-    if(roomData.status==="playing" || roomData.status==="finished"){
-      if(currentScreen!=="game") startGameView();
-      renderGame();
-    }else{
-      if(currentScreen==="game"){
-        stopHandListener();
-        myHand=[];
-        selectedHand.clear();
-        selectedField=null;
-        undoSnapshot=null;
-        turnSnapshot=null;
-        previousTurn=null;
-        recoveryUsed=false;
-        handLoaded=false;
-      }
-
-      showScreen("lobby");
-      renderLobby();
-    }
-  });
-
-  listen(roomRef().child("chat"),"value",snapshot=>{
-    renderChat(snapshot.val()||{});
-  });
+function isMyTurn(){
+return room&&room.game&&room.game.turnUid===uid&&!room.game.winnerUid;
 }
 
 function renderLobby(){
-  if(!roomData || !roomData.members) return;
-
-  const order=memberIds();
-  const members=roomData.members;
-
-  $("playerCount").textContent=order.length+"/4명";
-  $("players").innerHTML="";
-
-  order.forEach(id=>{
-    const player=members[id];
-    if(!player) return;
-
-    const div=document.createElement("div");
-    div.className="player";
-
-    const left=document.createElement("span");
-    left.textContent=player.nickname+(id===roomData.hostUid?" (방장)":"");
-
-    const right=document.createElement("strong");
-    right.textContent=player.ready?"준비 완료":"준비 중";
-    right.style.color=player.ready?"#81c784":"#ffcc80";
-
-    div.append(left,right);
-    $("players").appendChild(div);
-  });
-
-  const jokerCount=Number(roomData.settings.jokerCount);
-
-  $("settingText").textContent=
-    "조커 "+jokerCount+"개 / 난이도 "+({0:"상",1:"중",2:"하"}[jokerCount]);
-
-  $("lobbyJokers").value=String(jokerCount);
-  $("hostSettings").classList.toggle("hidden",!isHost());
-
-  $("settingsNotice").textContent=isHost()
-    ?"방장만 설정을 변경할 수 있습니다."
-    :"방장이 게임 설정을 관리합니다.";
-
-  const allReady=order.length>=2 &&
-    order.length<=4 &&
-    order.every(id=>members[id] && members[id].ready===true);
-
-  $("startButton").classList.toggle("hidden",!isHost());
-  $("startButton").disabled=!allReady;
-
-  $("readyButton").textContent=members[uid].ready?"준비 취소":"준비 완료";
-
-  if(order.length<2){
-    $("lobbyMessage").textContent="게임을 시작하려면 최소 2명이 필요합니다.";
-  }else if(!allReady){
-    $("lobbyMessage").textContent="모든 참가자가 준비 완료해야 게임을 시작할 수 있습니다.";
-  }else{
-    $("lobbyMessage").textContent="모두 준비 완료! 방장이 게임을 시작할 수 있습니다.";
-  }
-}
-
-async function saveSettings(){
-  if(!isHost() || !roomData || roomData.status!=="waiting") return;
-
-  const jokerCount=Number($("lobbyJokers").value);
-
-  if(![0,1,2].includes(jokerCount)){
-    alert("올바른 조커 개수를 선택하세요.");
-    return;
-  }
-
-  try{
-    const updates={};
-    updates["settings/jokerCount"]=jokerCount;
-
-    for(const id of memberIds()){
-      updates["members/"+id+"/ready"]=false;
-    }
-
-    await roomRef().update(updates);
-
-    $("lobbyMessage").textContent=
-      "설정이 변경되었습니다. 모든 참가자의 준비 상태가 초기화되었습니다.";
-  }catch(error){
-    console.error(error);
-    alert("설정을 변경하지 못했습니다. Firebase 규칙을 확인하세요.");
-  }
+if(!room)return;
+$("roomCodeText").textContent=roomCode;
+const order=normalize(room.order);
+$("memberList").innerHTML="";
+order.forEach(id=>{
+const member=room.members[id];
+if(!member)return;
+const div=document.createElement("div");
+div.className="member";
+const name=document.createElement("span");
+name.textContent=member.nickname+(id===room.hostUid?" (방장)":"");
+const state=document.createElement("span");
+state.textContent=member.ready?"준비 완료":"대기 중";
+div.append(name,state);
+$("memberList").append(div);
+});
+$("readyButton").textContent=room.members[uid]?.ready?"준비 취소":"준비";
+$("startButton").classList.toggle("hidden",!isHost());
+$("jokerSetting").disabled=!isHost();
+$("jokerSetting").value=String(room.settings?.jokerCount??2);
+renderChat("lobbyChat",room.chat);
 }
 
 async function toggleReady(){
-  if(!roomData || roomData.status!=="waiting") return;
-
-  const member=roomData.members[uid];
-  if(!member) return;
-
-  try{
-    await roomRef().child("members/"+uid+"/ready").set(!member.ready);
-  }catch(error){
-    console.error(error);
-    alert("준비 상태 변경에 실패했습니다. Firebase 규칙을 확인하세요.");
-  }
+if(!room)return;
+const ready=!(room.members[uid]?.ready);
+await db.ref("rooms/"+roomCode+"/members/"+uid+"/ready").set(ready);
 }
 
-async function startOnlineGame(){
-  if(actionBusy || !isHost() || !roomData) return;
-
-  actionBusy=true;
-  $("startButton").disabled=true;
-
-  try{
-    const order=memberIds();
-
-    if(order.length<2 || order.length>4){
-      alert("게임을 시작하려면 2~4명이 필요합니다.");
-      return;
-    }
-
-    if(!order.every(id=>roomData.members[id] && roomData.members[id].ready===true)){
-      alert("모든 참가자가 준비해야 합니다.");
-      return;
-    }
-
-    const deck=makeDeck(Number(roomData.settings.jokerCount));
-    const updates={};
-
-    for(const id of order){
-      const hand=[];
-
-      for(let i=0;i<14;i++){
-        hand.push(deck.pop());
-      }
-
-      updates["privateHands/"+roomCode+"/"+id]=hand;
-      updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=14;
-    }
-
-    updates["rooms/"+roomCode+"/game"]={
-      deck,
-      table:[],
-      turnUid:order[0],
-      turnNumber:1,
-      opened:{},
-      winnerUid:null,
-      result:null
-    };
-
-    updates["rooms/"+roomCode+"/status"]="playing";
-
-    await db.ref().update(updates);
-  }catch(error){
-    console.error(error);
-    alert("게임을 시작하지 못했습니다. Firebase 규칙을 확인하세요.\n"+(error.code||"UNKNOWN")+" / "+error.message);
-  }finally{
-    actionBusy=false;
-  }
+async function startGame(){
+if(!isHost()||!room)return;
+const order=normalize(room.order);
+if(order.length<2){alert("최소 2명이 필요합니다.");return;}
+if(!order.every(id=>room.members[id]?.ready)){alert("모든 참가자가 준비해야 합니다.");return;}
+const cards=makeDeck(Number($("jokerSetting").value));
+const privateUpdates={};
+for(const id of order){
+privateUpdates["privateHands/"+roomCode+"/"+id]=shuffleTake(cards,14);
 }
-
-function startGameView(){
-  stopHandListener();
-
-  showScreen("game");
-
-  selectedHand.clear();
-  selectedField=null;
-  undoSnapshot=null;
-  turnSnapshot=null;
-  recoveryUsed=false;
-  previousTurn=null;
-  handLoaded=false;
-
-  $("gameResult").classList.add("hidden");
-  $("returnLobbyButton").classList.add("hidden");
-  $("gameButtons").classList.remove("hidden");
-
-  handListenerRef=handsRef().child(uid);
-
-  handListenerCallback=snapshot=>{
-    myHand=normalizeArray(snapshot.val());
-    handLoaded=true;
-
-    if(roomData && roomData.game && isMyTurn() && !turnSnapshot){
-      saveTurnSnapshot();
-    }
-
-    renderGame();
-  };
-
-  handListenerRef.on("value",handListenerCallback);
+const game={
+table:[],
+turnUid:order[0],
+turnNumber:1,
+deck:cards,
+opened:{},
+winnerUid:null,
+result:null,
+phase:"playing"
+};
+const updates={};
+updates["rooms/"+roomCode+"/game"]=game;
+updates["rooms/"+roomCode+"/status"]="playing";
+for(const id of order){
+updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=14;
 }
-
-function saveUndoSnapshot(){
-  undoSnapshot={
-    table:structuredClone(normalizeArray(roomData.game.table)),
-    hand:structuredClone(myHand)
-  };
-}
-
-function saveTurnSnapshot(){
-  turnSnapshot={
-    table:structuredClone(normalizeArray(roomData.game.table)),
-    hand:structuredClone(myHand)
-  };
-}
-
-async function writeGameAndHand(game,hand){
-  game.table=normalizeArray(game.table);
-  game.deck=normalizeArray(game.deck);
-
-  const updates={};
-
-  updates["rooms/"+roomCode+"/game"]=game;
-  updates["privateHands/"+roomCode+"/"+uid]=hand;
-  updates["rooms/"+roomCode+"/members/"+uid+"/handCount"]=hand.length;
-
-  await db.ref().update(updates);
-}
-
-async function submitHandTiles(){
-  if(actionBusy || !isMyTurn() || !handLoaded) return;
-
-  const indexes=[...selectedHand].sort((a,b)=>a-b);
-  const chosen=indexes.map(index=>myHand[index]).filter(Boolean);
-
-  if(!chosen.length) return;
-
-  const groups=splitGroups(chosen);
-
-  if(!groups.length){
-    setMessage("선택한 타일로 유효한 조합을 만들 수 없습니다.");
-    return;
-  }
-
-  const usedIds=groups.flat().map(tile=>tile.id);
-  const chosenIds=chosen.map(tile=>tile.id);
-
-  if(
-    usedIds.length!==chosenIds.length ||
-    new Set(usedIds).size!==usedIds.length ||
-    !chosenIds.every(id=>usedIds.includes(id))
-  ){
-    setMessage("타일 조합을 확인하는 과정에서 오류가 발생했습니다.");
-    return;
-  }
-
-  actionBusy=true;
-
-  try{
-    const score=groups.reduce((sum,group)=>sum+groupScore(group),0);
-    const opened=(roomData.game.opened||{})[uid]===true;
-
-    if(!opened && score<30){
-      const game=structuredClone(roomData.game);
-      game.table=normalizeArray(game.table);
-      game.deck=normalizeArray(game.deck);
-
-      if(game.deck.length){
-        const hand=[...myHand,game.deck.pop()];
-        selectedHand.clear();
-        selectedField=null;
-
-        await writeGameAndHand(game,hand);
-        await finishMyTurn();
-
-        setMessage("최초 등록 30점 미달: 타일을 한 장 가져왔습니다.");
-      }else{
-        await finishMyTurn();
-        setMessage("최초 등록 30점 미달: 덱이 비어 있습니다.");
-      }
-
-      return;
-    }
-
-    saveUndoSnapshot();
-
-    const game=structuredClone(roomData.game);
-    game.table=normalizeArray(game.table);
-    game.deck=normalizeArray(game.deck);
-    game.opened=game.opened||{};
-
-    const ordered=groups.map(sortGroup);
-
-    game.table.push(...ordered);
-    game.opened[uid]=true;
-
-    const chosenIdSet=new Set(chosenIds);
-    const hand=myHand.filter(tile=>!chosenIdSet.has(tile.id));
-
-    selectedHand.clear();
-
-    if(!hand.length){
-      game.winnerUid=uid;
-      game.result={
-        type:"win",
-        winnerUid:uid,
-        text:(nickname||"플레이어")+" 승리!"
-      };
-
-      await writeGameAndHand(game,hand);
-      return;
-    }
-
-    await writeGameAndHand(game,hand);
-    setMessage("타일을 성공적으로 제출했습니다.");
-
-  }catch(error){
-    console.error("타일 제출 오류:",error);
-    setMessage(
-      "타일 제출 실패:"+
-      (error.code||"UNKNOWN")+
-      " / "+
-      (error.message||String(error))
-    );
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function surrenderGame(){
-  if(actionBusy || !roomData || !roomData.game || roomData.game.result) return;
-
-  const order=memberIds();
-
-  if(!order.includes(uid)) return;
-
-  if(!confirm("정말 항복하시겠습니까? 항복하면 게임이 종료됩니다.")) return;
-
-  actionBusy=true;
-  $("surrenderButton").disabled=true;
-
-  try{
-    const result=await roomRef().child("game").transaction(current=>{
-      if(!current || current.result || current.winnerUid) return;
-
-      const players=memberIds();
-      const remaining=players.filter(id=>id!==uid);
-
-      if(players.length===2){
-        current.winnerUid=remaining[0]||null;
-        current.result={
-          type:"win",
-          winnerUid:remaining[0]||null,
-          surrenderedUid:uid,
-          text:(roomData.members[remaining[0]]?.nickname||"상대 플레이어")+" 승리!"
-        };
-      }else{
-        current.winnerUid=null;
-        current.result={
-          type:"draw",
-          surrenderedUid:uid,
-          text:"무승부!"
-        };
-      }
-
-      current.resultAt=firebase.database.ServerValue.TIMESTAMP;
-
-      return current;
-    });
-
-    if(!result.committed){
-      setMessage("이미 게임이 종료되었거나 항복 처리에 실패했습니다.");
-    }
-  }catch(error){
-    console.error("항복 처리 오류:",error);
-    alert("항복 처리에 실패했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function returnToLobby(){
-  if(actionBusy || !isHost() || !roomData || !roomData.game || !roomData.game.result) return;
-
-  if(!confirm("모든 참가자를 대기실로 이동하고 게임을 초기화할까요?")) return;
-
-  actionBusy=true;
-  $("returnLobbyButton").disabled=true;
-
-  try{
-    const updates={};
-
-    updates["rooms/"+roomCode+"/game"]=null;
-
-    for(const id of memberIds()){
-      updates["rooms/"+roomCode+"/members/"+id+"/ready"]=false;
-      updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=0;
-      updates["privateHands/"+roomCode+"/"+id]=null;
-    }
-
-    updates["rooms/"+roomCode+"/status"]="waiting";
-
-    await db.ref().update(updates);
-
-    stopHandListener();
-    myHand=[];
-    selectedHand.clear();
-    selectedField=null;
-    undoSnapshot=null;
-    turnSnapshot=null;
-    previousTurn=null;
-    recoveryUsed=false;
-    handLoaded=false;
-
-    showScreen("lobby");
-
-  }catch(error){
-    console.error("대기실 복귀 오류:",error);
-    alert("대기실로 돌아가지 못했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
-    $("returnLobbyButton").disabled=false;
-  }finally{
-    actionBusy=false;
-  }
-}
-
-async function moveFieldTile(){
-  if(actionBusy || !isMyTurn() || !selectedField || !handLoaded) return;
-
-  actionBusy=true;
-
-  try{
-    const {groupIndex,tileIndex}=selectedField;
-    const game=structuredClone(roomData.game);
-    game.table=normalizeArray(game.table);
-
-    if(!game.table[groupIndex] || !game.table[groupIndex][tileIndex]) return;
-
-    saveUndoSnapshot();
-
-    const [tile]=game.table[groupIndex].splice(tileIndex,1);
-
-    if(!game.table[groupIndex].length){
-      game.table.splice(groupIndex,1);
-    }
-
-    const hand=[...myHand,tile];
-
-    selectedField=null;
-
-    await writeGameAndHand(game,hand);
-    setMessage("필드 타일을 내 패로 이동했습니다.");
-  }catch(error){
-    console.error(error);
-    setMessage("필드 타일 이동에 실패했습니다.");
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function finishMyTurn(){
-  if(!isMyTurn()) return false;
-
-  const order=memberIds();
-
-  if(!order.length) return false;
-
-  const gameRef=roomRef().child("game");
-
-  const result=await gameRef.transaction(current=>{
-    if(!current || current.turnUid!==uid || current.winnerUid || current.result) return;
-
-    const currentIndex=order.indexOf(uid);
-    if(currentIndex<0) return;
-
-    const next=order[(currentIndex+1)%order.length];
-
-    return {
-      ...current,
-      turnUid:next,
-      turnNumber:(current.turnNumber||1)+1
-    };
-  });
-
-  selectedHand.clear();
-  selectedField=null;
-
-  return result.committed;
-}
-
-async function drawTile(){
-  if(actionBusy || !isMyTurn() || !handLoaded) return;
-
-  actionBusy=true;
-
-  try{
-    const game=structuredClone(roomData.game);
-    game.deck=normalizeArray(game.deck);
-
-    if(!game.deck.length){
-      setMessage("덱에 남은 타일이 없습니다.");
-      await finishMyTurn();
-      return;
-    }
-
-    const hand=[...myHand,game.deck.pop()];
-
-    selectedHand.clear();
-    selectedField=null;
-
-    await writeGameAndHand(game,hand);
-    await finishMyTurn();
-
-    setMessage("타일 한 개를 가져왔습니다.");
-  }catch(error){
-    console.error(error);
-    setMessage("타일을 가져오지 못했습니다.");
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function endTurn(){
-  if(actionBusy || !isMyTurn()) return;
-
-  actionBusy=true;
-
-  try{
-    selectedHand.clear();
-    selectedField=null;
-
-    await finishMyTurn();
-    setMessage("턴을 종료했습니다.");
-  }catch(error){
-    console.error(error);
-    setMessage("턴을 종료하지 못했습니다.");
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function restoreLastAction(){
-  if(actionBusy || !isMyTurn() || !handLoaded) return;
-
-  if(recoveryUsed){
-    setMessage("이번 차례의 복구 기회를 이미 사용했습니다.");
-    return;
-  }
-
-  if(!undoSnapshot){
-    setMessage("복구할 조작이 없습니다.");
-    return;
-  }
-
-  actionBusy=true;
-
-  try{
-    recoveryUsed=true;
-
-    const game=structuredClone(roomData.game);
-    game.table=structuredClone(undoSnapshot.table);
-
-    await writeGameAndHand(game,structuredClone(undoSnapshot.hand));
-
-    undoSnapshot=null;
-    selectedHand.clear();
-    selectedField=null;
-
-    setMessage("마지막 조작을 복구했습니다.");
-  }catch(error){
-    console.error(error);
-    recoveryUsed=false;
-    setMessage("복구에 실패했습니다.");
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-async function resetTurn(){
-  if(actionBusy || !isMyTurn() || !turnSnapshot || !handLoaded) return;
-
-  actionBusy=true;
-
-  try{
-    const game=structuredClone(roomData.game);
-    game.table=structuredClone(turnSnapshot.table);
-
-    recoveryUsed=false;
-    undoSnapshot=null;
-    selectedHand.clear();
-    selectedField=null;
-
-    await writeGameAndHand(game,structuredClone(turnSnapshot.hand));
-
-    setMessage("이전 플레이어 상태로 복원했습니다.");
-  }catch(error){
-    console.error(error);
-    setMessage("상태 복원에 실패했습니다.");
-  }finally{
-    actionBusy=false;
-    renderGame();
-  }
-}
-
-function tileClass(tile){
-  if(tile.joker) return "joker";
-  return COLORS[tile.color]||"";
-}
-
-function createTileElement(tile,small=false,selected=false){
-  const div=document.createElement("div");
-
-  div.className="tile "+tileClass(tile)+
-    (small?" small":"")+
-    (selected?" selected":"");
-
-  div.textContent=tile.joker?"★":tile.num;
-
-  return div;
-}
-
-function setMessage(text){
-  $("gameMessage").textContent=text;
+Object.assign(updates,privateUpdates);
+await db.ref().update(updates);
 }
 
 function renderGame(){
-  if(!roomData || !roomData.game) return;
-
-  const game=roomData.game;
-  const order=memberIds();
-  const members=roomData.members||{};
-  const myTurn=isMyTurn();
-  const result=game.result||null;
-  const table=normalizeArray(game.table);
-  const deck=normalizeArray(game.deck);
-
-  $("gameRoomInfo").textContent="방 코드: "+roomCode;
-
-  const current=members[game.turnUid];
-
-  $("turnInfo").textContent=result
-    ?"게임 종료"
-    :(myTurn?"내 차례":(current?current.nickname+" 차례":"상대 차례"));
-
-  $("deckInfo").textContent="남은 타일: "+deck.length;
-
-  if(previousTurn!==game.turnUid){
-    previousTurn=game.turnUid;
-    selectedHand.clear();
-    selectedField=null;
-    undoSnapshot=null;
-    recoveryUsed=false;
-    turnSnapshot=null;
-
-    if(myTurn && handLoaded){
-      saveTurnSnapshot();
-      setMessage("내 차례입니다. 타일을 선택하세요.");
-    }
-  }
-
-  if(myTurn && handLoaded && !turnSnapshot){
-    saveTurnSnapshot();
-  }
-
-  $("opponents").innerHTML="";
-
-  order.filter(id=>id!==uid).forEach(id=>{
-    const player=members[id];
-    const div=document.createElement("div");
-
-    div.className="player";
-    div.textContent=(player?player.nickname:"플레이어")+
-      " · 타일 "+(player?player.handCount:0)+"개";
-
-    $("opponents").appendChild(div);
-  });
-
-  $("board").innerHTML="";
-
-  table.forEach((group,groupIndex)=>{
-    const groupDiv=document.createElement("div");
-    groupDiv.className="group";
-
-    normalizeArray(group).forEach((tile,tileIndex)=>{
-      const el=createTileElement(
-        tile,
-        true,
-        selectedField &&
-        selectedField.groupIndex===groupIndex &&
-        selectedField.tileIndex===tileIndex
-      );
-
-      el.addEventListener("click",()=>{
-        if(!myTurn || actionBusy) return;
-
-        selectedHand.clear();
-        selectedField={groupIndex,tileIndex};
-
-        renderGame();
-      });
-
-      groupDiv.appendChild(el);
-    });
-
-    $("board").appendChild(groupDiv);
-  });
-
-  $("hand").innerHTML="";
-
-  myHand.forEach((tile,index)=>{
-    const el=createTileElement(
-      tile,
-      false,
-      selectedHand.has(index)
-    );
-
-    el.addEventListener("click",()=>{
-      if(!myTurn || actionBusy) return;
-
-      selectedField=null;
-
-      if(selectedHand.has(index)){
-        selectedHand.delete(index);
-      }else{
-        selectedHand.add(index);
-      }
-
-      renderGame();
-    });
-
-    $("hand").appendChild(el);
-  });
-
-  $("drawButton").disabled=!myTurn || actionBusy;
-  $("endButton").disabled=!myTurn || actionBusy;
-  $("undoButton").disabled=!myTurn || !undoSnapshot || recoveryUsed || actionBusy;
-  $("resetButton").disabled=!myTurn || !turnSnapshot || actionBusy;
-  $("surrenderButton").disabled=!!result || actionBusy;
-
-  if(result){
-    $("gameResult").classList.remove("hidden");
-    $("gameButtons").classList.add("hidden");
-
-    if(result.type==="draw"){
-      $("resultTitle").textContent="무승부!";
-      $("resultDescription").textContent="항복으로 인해 이번 게임은 무승부로 종료되었습니다.";
-    }else{
-      const winner=members[result.winnerUid];
-      $("resultTitle").textContent="게임 종료";
-      $("resultDescription").textContent=(winner?winner.nickname:"상대 플레이어")+" 승리!";
-    }
-
-    if(isHost()){
-      $("returnLobbyButton").classList.remove("hidden");
-      $("returnLobbyButton").disabled=actionBusy;
-      $("returnNotice").textContent="방장이 대기실로 돌아가기를 누르면 모든 참가자가 대기실로 이동합니다.";
-    }else{
-      $("returnLobbyButton").classList.add("hidden");
-      $("returnNotice").textContent="방장이 대기실로 돌아가기를 누를 때까지 기다려 주세요.";
-    }
-
-    $("gameMessage").textContent="게임이 종료되었습니다.";
-  }else{
-    $("gameResult").classList.add("hidden");
-    $("gameButtons").classList.remove("hidden");
-  }
-
-  if(game.winnerUid && !result){
-    const winner=members[game.winnerUid];
-    setMessage((winner?winner.nickname:"플레이어")+" 승리!");
-  }
+if(!room||!room.game)return;
+const game=room.game;
+table=normalize(game.table);
+const order=normalize(room.order);
+$("players").innerHTML="";
+order.forEach(id=>{
+const member=room.members[id];
+const div=document.createElement("div");
+div.className="player"+(game.turnUid===id?" active":"");
+div.textContent=(member?.nickname||"참가자")+" · "+(member?.handCount??0)+"개";
+$("players").append(div);
+});
+$("turnInfo").textContent=game.winnerUid?"게임 종료":(game.turnUid===uid?"내 차례":"상대방 차례");
+$("gameMessage").textContent=game.result||"타일을 배치하고 턴을 종료하세요.";
+$("result").textContent=game.result||"";
+$("returnButton").classList.toggle("hidden",!(game.result&&isHost()));
+$("drawButton").disabled=!isMyTurn()||game.result||!!game.opened?.[uid];
+$("endTurnButton").disabled=!isMyTurn()||!!game.result;
+$("surrenderButton").disabled=!isMyTurn()||!!game.result;
+$("newMeldButton").disabled=!isMyTurn()||!!game.result;
+$("restoreButton").disabled=!isMyTurn()||!!game.result;
+renderBoard();
+renderHand();
+renderChat("gameChat",room.chat);
 }
 
-async function handleEnter(){
-  if(currentScreen!=="game" || !isMyTurn() || actionBusy) return;
-
-  if(selectedField){
-    await moveFieldTile();
-    return;
-  }
-
-  if(selectedHand.size){
-    await submitHandTiles();
-    return;
-  }
-
-  setMessage("타일을 선택하세요.");
+function renderBoard(){
+const board=$("board");
+board.innerHTML="";
+table.forEach((meld,index)=>{
+const div=document.createElement("div");
+div.className="meld";
+div.dataset.meld=index;
+div.addEventListener("dragover",e=>e.preventDefault());
+div.addEventListener("drop",e=>{
+e.preventDefault();
+moveDraggedToMeld(index);
+});
+meld.forEach(tile=>{
+div.append(createTile(tile,"table",index));
+});
+board.append(div);
+});
+board.addEventListener("dragover",e=>e.preventDefault());
+board.ondrop=e=>{
+e.preventDefault();
+if(selectedDrag&&selectedDrag.source==="hand"){
+moveDraggedToNewMeld();
+}
+};
 }
 
-async function sendChat(inputId){
-  const input=$(inputId);
-  const text=input.value.trim();
-
-  if(!text || !roomCode || !uid) return;
-
-  input.value="";
-
-  try{
-    await roomRef().child("chat").push({
-      uid,
-      nickname,
-      text:text.slice(0,200),
-      time:firebase.database.ServerValue.TIMESTAMP
-    });
-  }catch(error){
-    console.error(error);
-    alert("메시지를 전송하지 못했습니다.");
-  }
+function renderHand(){
+const area=$("hand");
+area.innerHTML="";
+area.classList.toggle("drop",false);
+hand.forEach(tile=>area.append(createTile(tile,"hand")));
+area.ondragover=e=>e.preventDefault();
+area.ondrop=e=>{
+e.preventDefault();
+moveDraggedToHand();
+};
 }
 
-function renderChat(messages){
-  const containers=[$("chatMessages"),$("gameChatMessages")];
+function createTile(tile,source,meldIndex){
+const el=document.createElement("div");
+el.className="tile "+(tile.joker?"joker":tile.color);
+el.textContent=tile.joker?"J":tile.num;
+el.draggable=isMyTurn()&&!room.game.result;
+el.dataset.tileId=tile.id;
+el.addEventListener("dragstart",()=>{
+selectedDrag={tile,source,meldIndex};
+el.classList.add("dragging");
+});
+el.addEventListener("dragend",()=>el.classList.remove("dragging"));
+return el;
+}
 
-  const entries=Object.values(messages)
-    .sort((a,b)=>(a.time||0)-(b.time||0))
-    .slice(-80);
+function findTile(id){
+for(let i=0;i<hand.length;i++){
+if(hand[i].id===id)return {source:"hand",index:i};
+}
+for(let g=0;g<table.length;g++){
+for(let i=0;i<table[g].length;i++){
+if(table[g][i].id===id)return {source:"table",group:g,index:i};
+}
+}
+return null;
+}
 
-  for(const container of containers){
-    if(!container) continue;
+function moveDraggedToMeld(target){
+if(!selectedDrag||!isMyTurn())return;
+const found=findTile(selectedDrag.tile.id);
+if(!found)return;
+let tile;
+if(found.source==="hand"){
+tile=hand.splice(found.index,1)[0];
+}else{
+tile=table[found.group].splice(found.index,1)[0];
+if(!table[found.group].length)table.splice(found.group,1);
+if(found.group<target)target--;
+}
+if(!table[target])table[target]=[];
+table[target].push(tile);
+selectedDrag=null;
+renderBoard();
+renderHand();
+}
 
-    container.innerHTML="";
+function moveDraggedToNewMeld(){
+if(!selectedDrag||selectedDrag.source!=="hand"||!isMyTurn())return;
+const found=findTile(selectedDrag.tile.id);
+if(!found||found.source!=="hand")return;
+const tile=hand.splice(found.index,1)[0];
+table.push([tile]);
+selectedDrag=null;
+renderBoard();
+renderHand();
+}
 
-    entries.forEach(item=>{
-      const line=document.createElement("div");
-      line.className="chatline";
+function moveDraggedToHand(){
+if(!selectedDrag||!isMyTurn())return;
+const found=findTile(selectedDrag.tile.id);
+if(!found||found.source!=="table")return;
+const tile=table[found.group].splice(found.index,1)[0];
+if(!table[found.group].length)table.splice(found.group,1);
+hand.push(tile);
+selectedDrag=null;
+renderBoard();
+renderHand();
+}
 
-      const name=document.createElement("span");
-      name.className="chatname";
-      name.textContent=(item.nickname||"사용자")+": ";
+function resolveGroup(group){
+if(!Array.isArray(group)||group.length<3||group.length>13)return null;
+const normal=group.filter(t=>!t.joker);
+const jokers=group.filter(t=>t.joker);
+if(!normal.length)return null;
+const assignments={};
+const sameNumber=normal.every(t=>t.num===normal[0].num);
+const uniqueColors=new Set(normal.map(t=>t.color));
+if(sameNumber&&uniqueColors.size===normal.length&&group.length<=4&&uniqueColors.size+jokers.length<=4){
+const missing=COLORS.filter(c=>!uniqueColors.has(c));
+normal.forEach(t=>assignments[t.id]={num:t.num,color:t.color});
+jokers.forEach((t,i)=>assignments[t.id]={num:normal[0].num,color:missing[i]});
+return {type:"group",assignments};
+}
+const sameColor=normal.every(t=>t.color===normal[0].color);
+const uniqueNumbers=new Set(normal.map(t=>t.num));
+if(sameColor&&uniqueNumbers.size===normal.length){
+for(let start=1;start<=14-group.length;start++){
+const sequence=Array.from({length:group.length},(_,i)=>start+i);
+if(!normal.every(t=>sequence.includes(t.num)))continue;
+const missing=sequence.filter(n=>!uniqueNumbers.has(n));
+if(missing.length!==jokers.length)continue;
+normal.forEach(t=>assignments[t.id]={num:t.num,color:t.color});
+jokers.forEach((t,i)=>assignments[t.id]={num:missing[i],color:normal[0].color});
+return {type:"run",assignments};
+}
+}
+return null;
+}
 
-      const text=document.createElement("span");
-      text.textContent=item.text||"";
+function validateTable(groups){
+if(!groups.length)return false;
+for(const group of groups){
+if(!resolveGroup(group))return false;
+}
+return true;
+}
 
-      line.append(name,text);
-      container.appendChild(line);
-    });
+function scoreGroup(group){
+const result=resolveGroup(group);
+if(!result)return 0;
+return group.reduce((sum,t)=>sum+(result.assignments[t.id]?.num||0),0);
+}
 
-    container.scrollTop=container.scrollHeight;
-  }
+function totalScore(groups){
+return groups.reduce((sum,g)=>sum+scoreGroup(g),0);
+}
+
+function sortGroup(group){
+const resolved=resolveGroup(group);
+if(!resolved)return group;
+return [...group].sort((a,b)=>{
+const aa=resolved.assignments[a.id];
+const bb=resolved.assignments[b.id];
+return aa.num-bb.num||COLORS.indexOf(aa.color)-COLORS.indexOf(bb.color);
+});
+}
+
+function addNewMeld(){
+if(!isMyTurn())return;
+table.push([]);
+renderBoard();
+}
+
+function snapshotTurn(){
+originalHand=JSON.parse(JSON.stringify(hand));
+originalTable=JSON.parse(JSON.stringify(normalize(room.game.table)));
+}
+
+function restoreTurn(){
+if(!isMyTurn())return;
+hand=JSON.parse(JSON.stringify(originalHand));
+table=JSON.parse(JSON.stringify(originalTable));
+renderBoard();
+renderHand();
+}
+
+async function drawTile(){
+if(!isMyTurn()||actionLock)return;
+actionLock=true;
+try{
+const game=room.game;
+const cards=normalize(game.deck);
+if(!cards.length){alert("더 이상 가져올 타일이 없습니다.");return;}
+const tile=cards.shift();
+const updates={};
+updates["privateHands/"+roomCode+"/"+uid]=hand.concat(tile);
+updates["rooms/"+roomCode+"/game/deck"]=cards;
+updates["rooms/"+roomCode+"/game/turnUid"]=nextPlayerUid();
+updates["rooms/"+roomCode+"/game/turnNumber"]=(game.turnNumber||1)+1;
+updates["rooms/"+roomCode+"/members/"+uid+"/handCount"]=hand.length+1;
+updates["rooms/"+roomCode+"/game/opened/"+uid]=false;
+await db.ref().update(updates);
+}catch(e){
+alert("타일을 가져오지 못했습니다: "+e.message);
+}finally{actionLock=false;}
+}
+
+function nextPlayerUid(){
+const order=normalize(room.order);
+const index=order.indexOf(uid);
+return order[(index+1)%order.length];
+}
+
+async function endTurn(){
+if(!isMyTurn()||actionLock)return;
+actionLock=true;
+try{
+table=table.filter(g=>g.length>0);
+if(!validateTable(table)){
+alert("유효하지 않은 조합이 있습니다. 모든 조합을 확인해 주세요.");
+return;
+}
+const originalIds=new Set(originalHand.map(t=>t.id));
+const usedHandTiles=[];
+const tableIds=new Set(table.flat().map(t=>t.id));
+for(const tile of originalHand){
+if(tableIds.has(tile.id))usedHandTiles.push(tile);
+}
+if(!room.game.opened?.[uid]&&usedHandTiles.length){
+const usedScore=table.flat().filter(t=>originalIds.has(t.id)).reduce((sum,t)=>{
+return sum+(t.joker?0:t.num);
+},0);
+if(usedScore<30){
+alert("최초 등록은 30점 이상이어야 합니다.");
+return;
+}
+}
+const handIds=new Set(hand.map(t=>t.id));
+const remainingHand=hand.filter(t=>handIds.has(t.id));
+const order=normalize(room.order);
+const index=order.indexOf(uid);
+const next=order[(index+1)%order.length];
+const updates={};
+updates["rooms/"+roomCode+"/game/table"]=table.map(sortGroup);
+updates["rooms/"+roomCode+"/game/turnUid"]=next;
+updates["rooms/"+roomCode+"/game/turnNumber"]=(room.game.turnNumber||1)+1;
+updates["rooms/"+roomCode+"/game/opened/"+uid]=true;
+updates["privateHands/"+roomCode+"/"+uid]=remainingHand;
+updates["rooms/"+roomCode+"/members/"+uid+"/handCount"]=remainingHand.length;
+if(remainingHand.length===0){
+updates["rooms/"+roomCode+"/game/winnerUid"]=uid;
+updates["rooms/"+roomCode+"/game/result"]=(room.members[uid]?.nickname||"플레이어")+" 승리!";
+}
+await db.ref().update(updates);
+}catch(e){
+alert("턴을 종료하지 못했습니다: "+e.message);
+}finally{actionLock=false;}
+}
+
+async function surrender(){
+if(!isMyTurn()||actionLock)return;
+if(!confirm("항복하시겠습니까?"))return;
+actionLock=true;
+try{
+const order=normalize(room.order);
+const remaining=order.filter(id=>id!==uid);
+const updates={};
+if(order.length===2){
+updates["rooms/"+roomCode+"/game/winnerUid"]=remaining[0];
+updates["rooms/"+roomCode+"/game/result"]=(room.members[remaining[0]]?.nickname||"상대 플레이어")+" 승리!";
+}else{
+updates["rooms/"+roomCode+"/game/result"]="항복으로 인한 무승부";
+}
+updates["rooms/"+roomCode+"/game/phase"]="finished";
+await db.ref().update(updates);
+}catch(e){
+alert(e.message);
+}finally{actionLock=false;}
+}
+
+async function returnLobby(){
+if(!isHost()||!room?.game?.result)return;
+if(!confirm("모든 참가자를 대기실로 이동할까요?"))return;
+const order=normalize(room.order);
+const updates={};
+updates["rooms/"+roomCode+"/game"]=null;
+updates["rooms/"+roomCode+"/status"]="waiting";
+for(const id of order){
+updates["rooms/"+roomCode+"/members/"+id+"/ready"]=false;
+updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=0;
+updates["privateHands/"+roomCode+"/"+id]=null;
+}
+await db.ref().update(updates);
 }
 
 async function leaveRoom(){
-  if(!roomCode || !uid || leavingRoom || actionBusy) return;
-
-  leavingRoom=true;
-
-  const code=roomCode;
-  const oldUid=uid;
-  const wasHost=isHost();
-
-  try{
-    if(wasHost){
-      await db.ref().onDisconnect().cancel();
-
-      const updates={};
-      updates["rooms/"+code]=null;
-      updates["privateHands/"+code]=null;
-
-      await db.ref().update(updates);
-    }else{
-      const order=memberIds().filter(id=>id!==oldUid);
-      const updates={};
-
-      updates["rooms/"+code+"/members/"+oldUid]=null;
-      updates["rooms/"+code+"/order"]=order;
-      updates["privateHands/"+code+"/"+oldUid]=null;
-
-      await db.ref().update(updates);
-    }
-
-    leaveLocal();
-  }catch(error){
-    console.error(error);
-    leavingRoom=false;
-    alert("방을 나가는 도중 오류가 발생했습니다. Firebase 규칙을 확인하세요.");
-  }
+if(!room)return;
+if(!confirm("방에서 나가시겠습니까?"))return;
+const order=normalize(room.order).filter(id=>id!==uid);
+const updates={};
+updates["rooms/"+roomCode+"/members/"+uid]=null;
+updates["rooms/"+roomCode+"/order"]=order;
+if(!order.length){
+updates["rooms/"+roomCode]=null;
+}else if(isHost()){
+updates["rooms/"+roomCode+"/hostUid"]=order[0];
+}
+updates["privateHands/"+roomCode+"/"+uid]=null;
+await db.ref().update(updates);
+cleanup();
+showScreen("menu");
 }
 
-function leaveLocal(){
-  stopListeners();
-  stopHandListener();
-
-  roomCode="";
-  roomData=null;
-  myHand=[];
-  selectedHand.clear();
-  selectedField=null;
-
-  undoSnapshot=null;
-  turnSnapshot=null;
-  previousTurn=null;
-  recoveryUsed=false;
-  disconnectArmed=false;
-  leavingRoom=false;
-  actionBusy=false;
-  handLoaded=false;
-
-  showScreen("menu");
+function listenChat(){
+if(chatListener)chatListener.off();
+chatListener=db.ref("rooms/"+roomCode+"/chat");
+chatListener.limitToLast(50).on("value",snap=>{
+const messages=snap.val()||{};
+const data=Object.values(messages);
+renderChat(currentScreen==="lobby"?"lobbyChat":"gameChat",data);
+});
 }
 
-$("createButton").addEventListener("click",createRoom);
-$("joinButton").addEventListener("click",joinRoom);
-$("readyButton").addEventListener("click",toggleReady);
-$("saveSettings").addEventListener("click",saveSettings);
-$("startButton").addEventListener("click",startOnlineGame);
-$("leaveButton").addEventListener("click",leaveRoom);
+function renderChat(id,messages){
+const area=$(id);
+if(!area)return;
+area.innerHTML="";
+const data=Array.isArray(messages)?messages:Object.values(messages||{});
+data.forEach(message=>{
+if(!message)return;
+const line=document.createElement("div");
+line.className="chatLine";
+line.textContent=(message.nickname||"알 수 없음")+": "+(message.text||"");
+area.append(line);
+});
+area.scrollTop=area.scrollHeight;
+}
 
-$("sendChat").addEventListener("click",()=>sendChat("chatInput"));
-$("gameSendChat").addEventListener("click",()=>sendChat("gameChatInput"));
+async function sendChat(inputId){
+const input=$(inputId);
+const text=input.value.trim();
+if(!text)return;
+input.value="";
+await db.ref("rooms/"+roomCode+"/chat").push({
+uid,
+nickname,
+text:text.slice(0,200),
+time:Date.now()
+});
+}
 
-$("chatInput").addEventListener("keydown",event=>{
-  if(event.key==="Enter") sendChat("chatInput");
+$("createRoom").onclick=createRoom;
+$("joinRoom").onclick=joinRoom;
+$("readyButton").onclick=toggleReady;
+$("startButton").onclick=startGame;
+$("leaveButton").onclick=leaveRoom;
+$("jokerSetting").onchange=async()=>{
+if(isHost())await db.ref("rooms/"+roomCode+"/settings/jokerCount").set(Number($("jokerSetting").value));
+};
+$("copyCode").onclick=()=>navigator.clipboard.writeText(roomCode);
+$("newMeldButton").onclick=addNewMeld;
+$("restoreButton").onclick=restoreTurn;
+$("drawButton").onclick=drawTile;
+$("endTurnButton").onclick=endTurn;
+$("surrenderButton").onclick=surrender;
+$("returnButton").onclick=returnLobby;
+$("lobbyChatSend").onclick=()=>sendChat("lobbyChatInput");
+$("gameChatSend").onclick=()=>sendChat("gameChatInput");
+$("lobbyChatInput").onkeydown=e=>{if(e.key==="Enter")sendChat("lobbyChatInput");};
+$("gameChatInput").onkeydown=e=>{if(e.key==="Enter")sendChat("gameChatInput");};
+
+auth.signInAnonymously().then(user=>{
+uid=user.user.uid;
+}).catch(error=>{
+$("menuMessage").textContent="로그인 오류: "+error.message;
 });
 
-$("gameChatInput").addEventListener("keydown",event=>{
-  if(event.key==="Enter") sendChat("gameChatInput");
-});
-
-$("drawButton").addEventListener("click",drawTile);
-$("endButton").addEventListener("click",endTurn);
-$("undoButton").addEventListener("click",restoreLastAction);
-$("resetButton").addEventListener("click",resetTurn);
-$("surrenderButton").addEventListener("click",surrenderGame);
-$("returnLobbyButton").addEventListener("click",returnToLobby);
-
-document.addEventListener("keydown",event=>{
-  if(event.key==="Enter" && currentScreen==="game"){
-    if(event.target.tagName==="INPUT") return;
-    event.preventDefault();
-    handleEnter();
-  }
-
-  if(event.key==="Escape" && currentScreen==="game"){
-    endTurn();
-  }
-
-  if(event.key==="ArrowDown" && currentScreen==="game"){
-    event.preventDefault();
-    drawTile();
-  }
-});
-
-login().catch(error=>{
-  console.error("Firebase 로그인 오류:",error);
-  alert("Firebase 로그인에 실패했습니다. Firebase 익명 로그인을 활성화했는지 확인하세요.\n"+error.message);
-});
 </script>
 </body>
 </html>
