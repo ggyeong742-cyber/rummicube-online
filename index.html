@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -206,6 +207,8 @@ const COLORS={
   "주황":"orangetile"
 };
 
+const COLOR_ORDER=["빨강","파랑","검정","주황"];
+
 let uid=null;
 let nickname="";
 let roomCode="";
@@ -219,19 +222,34 @@ let recoveryUsed=false;
 let previousTurn=null;
 let listeners=[];
 let currentScreen="menu";
-let gameOverShown=false;
 let disconnectArmed=false;
 let leavingRoom=false;
 let actionBusy=false;
 let handLoaded=false;
 let authPromise=null;
+let handListenerRef=null;
+let handListenerCallback=null;
 
 const $=id=>document.getElementById(id);
 const roomRef=()=>db.ref("rooms/"+roomCode);
 const handsRef=()=>db.ref("privateHands/"+roomCode);
 const isHost=()=>roomData && roomData.hostUid===uid;
-const memberIds=()=>roomData && Array.isArray(roomData.order)?roomData.order:[];
+const memberIds=()=>normalizeArray(roomData && roomData.order);
 const isMyTurn=()=>roomData && roomData.game && roomData.game.turnUid===uid && !roomData.game.winnerUid && !roomData.game.result;
+
+function normalizeArray(value){
+  if(Array.isArray(value)) return value;
+  if(!value || typeof value!=="object") return [];
+
+  const keys=Object.keys(value);
+
+  if(!keys.every(key=>/^\d+$/.test(key))) return [];
+
+  return keys
+    .sort((a,b)=>Number(a)-Number(b))
+    .map(key=>value[key])
+    .filter(value=>value!==null && value!==undefined);
+}
 
 function showScreen(name){
   currentScreen=name;
@@ -245,6 +263,15 @@ function stopListeners(){
     ref.off(event,callback);
   }
   listeners=[];
+}
+
+function stopHandListener(){
+  if(handListenerRef && handListenerCallback){
+    handListenerRef.off("value",handListenerCallback);
+  }
+
+  handListenerRef=null;
+  handListenerCallback=null;
 }
 
 function listen(ref,event,callback){
@@ -308,65 +335,144 @@ function makeDeck(jokerCount){
   return deck;
 }
 
-function validGroup(group){
-  if(group.length<3 || group.length>13) return false;
-
-  const normal=group.filter(t=>!t.joker);
-  const jokers=group.length-normal.length;
-
-  if(!normal.length) return false;
-
-  const numbers=normal.map(t=>t.num);
-  const colors=normal.map(t=>t.color);
-
-  if(group.length<=4 &&
-     new Set(numbers).size===1 &&
-     new Set(colors).size===colors.length &&
-     new Set(colors).size+jokers<=4){
-    return true;
+function resolveGroup(group){
+  if(!Array.isArray(group) || group.length<3 || group.length>13){
+    return null;
   }
 
-  if(new Set(colors).size===1 &&
-     new Set(numbers).size===numbers.length){
-    for(let start=1;start<=14-group.length;start++){
-      const sequence=new Set(
-        Array.from({length:group.length},(_,i)=>start+i)
-      );
+  const normal=group.filter(tile=>tile && tile.joker!==true);
+  const jokers=group.filter(tile=>tile && tile.joker===true);
 
-      if(numbers.every(n=>sequence.has(n))){
-        const missing=[...sequence].filter(n=>!numbers.includes(n));
+  if(!normal.length) return null;
+  if(normal.length+jokers.length!==group.length) return null;
 
-        if(missing.length===jokers) return true;
-      }
+  const numbers=normal.map(tile=>Number(tile.num));
+  const colors=normal.map(tile=>tile.color);
+
+  if(numbers.some(number=>!Number.isInteger(number) || number<1 || number>13)){
+    return null;
+  }
+
+  if(colors.some(color=>!COLOR_ORDER.includes(color))){
+    return null;
+  }
+
+  const assignments={};
+
+  if(
+    group.length<=4 &&
+    new Set(numbers).size===1 &&
+    new Set(colors).size===colors.length &&
+    normal.length+jokers.length<=4
+  ){
+    const number=numbers[0];
+    const missingColors=COLOR_ORDER.filter(color=>!colors.includes(color));
+
+    if(missingColors.length<jokers.length) return null;
+
+    normal.forEach(tile=>{
+      assignments[tile.id]={
+        num:number,
+        color:tile.color
+      };
+    });
+
+    jokers.forEach((tile,index)=>{
+      assignments[tile.id]={
+        num:number,
+        color:missingColors[index]
+      };
+    });
+
+    return {
+      type:"group",
+      assignments
+    };
+  }
+
+  if(
+    new Set(colors).size!==1 ||
+    new Set(numbers).size!==numbers.length
+  ){
+    return null;
+  }
+
+  const color=colors[0];
+
+  for(let start=1;start<=14-group.length;start++){
+    const sequence=Array.from(
+      {length:group.length},
+      (_,index)=>start+index
+    );
+
+    if(!numbers.every(number=>sequence.includes(number))){
+      continue;
     }
+
+    const missing=sequence.filter(number=>!numbers.includes(number));
+
+    if(missing.length!==jokers.length){
+      continue;
+    }
+
+    normal.forEach(tile=>{
+      assignments[tile.id]={
+        num:Number(tile.num),
+        color:tile.color
+      };
+    });
+
+    jokers.forEach((tile,index)=>{
+      assignments[tile.id]={
+        num:missing[index],
+        color
+      };
+    });
+
+    return {
+      type:"run",
+      assignments
+    };
   }
 
-  return false;
+  return null;
+}
+
+function validGroup(group){
+  return resolveGroup(group)!==null;
 }
 
 function groupScore(group){
-  return group.reduce((sum,t)=>sum+(t.joker?0:t.num),0);
+  const resolved=resolveGroup(group);
+
+  if(!resolved) return 0;
+
+  return group.reduce((sum,tile)=>{
+    return sum+(resolved.assignments[tile.id]?.num||0);
+  },0);
 }
 
 function splitGroups(tiles){
   const n=tiles.length;
+
   if(n<3) return [];
 
   const candidatesByIndex=Array.from({length:n},()=>[]);
 
   function build(start,chosen){
     if(chosen.length>=3){
-      const group=chosen.map(i=>tiles[i]);
+      const group=chosen.map(index=>tiles[index]);
+      const resolved=resolveGroup(group);
 
-      if(validGroup(group)){
+      if(resolved){
         const candidate={
           indices:[...chosen],
           group,
           score:groupScore(group)
         };
 
-        for(const i of chosen){
-          candidatesByIndex[i].push(candidate);
+        for(const index of chosen){
+          candidatesByIndex[index].push(candidate);
         }
       }
     }
@@ -401,10 +507,12 @@ function splitGroups(tiles){
     const remainingSet=new Set(remaining);
 
     for(const candidate of candidatesByIndex[first]){
-      if(!candidate.indices.every(i=>remainingSet.has(i))) continue;
+      if(!candidate.indices.every(index=>remainingSet.has(index))){
+        continue;
+      }
 
       const used=new Set(candidate.indices);
-      const next=remaining.filter(i=>!used.has(i));
+      const next=remaining.filter(index=>!used.has(index));
       const result=search(next);
 
       if(result!==null){
@@ -418,48 +526,24 @@ function splitGroups(tiles){
     return null;
   }
 
-  return search(Array.from({length:n},(_,i)=>i))||[];
+  return search(Array.from({length:n},(_,index)=>index))||[];
 }
 
 function sortGroup(group){
-  const normal=group.filter(t=>!t.joker);
-  const jokers=group.filter(t=>t.joker);
+  const resolved=resolveGroup(group);
 
-  if(!jokers.length){
-    return [...group].sort((a,b)=>b.num-a.num);
+  if(!resolved) return [...group];
+
+  if(resolved.type==="run"){
+    return [...group].sort((a,b)=>
+      resolved.assignments[a.id].num-resolved.assignments[b.id].num
+    );
   }
 
-  let jokerValues=[];
-  const numbers=normal.map(t=>t.num);
-  const colors=normal.map(t=>t.color);
-
-  if(new Set(colors).size===1 &&
-     new Set(numbers).size===numbers.length){
-    for(let start=1;start<=14-group.length;start++){
-      const sequence=Array.from(
-        {length:group.length},
-        (_,i)=>start+i
-      );
-
-      const missing=sequence.filter(n=>!numbers.includes(n));
-
-      if(missing.length===jokers.length){
-        jokerValues=missing;
-        break;
-      }
-    }
-  }
-
-  if(!jokerValues.length && normal.length){
-    jokerValues=jokers.map(()=>normal[0].num);
-  }
-
-  const values=new Map();
-
-  normal.forEach(t=>values.set(t.id,t.num));
-  jokers.forEach((t,i)=>values.set(t.id,jokerValues[i]??0));
-
-  return [...group].sort((a,b)=>values.get(b.id)-values.get(a.id));
+  return [...group].sort((a,b)=>
+    COLOR_ORDER.indexOf(resolved.assignments[a.id].color)-
+    COLOR_ORDER.indexOf(resolved.assignments[b.id].color)
+  );
 }
 
 async function createRoom(){
@@ -589,7 +673,7 @@ async function joinRoom(){
     const orderRef=ref.child("order");
 
     const result=await orderRef.transaction(current=>{
-      const currentOrder=Array.isArray(current)?current:[];
+      const currentOrder=normalizeArray(current);
 
       if(currentOrder.includes(uid)){
         return currentOrder;
@@ -622,8 +706,7 @@ async function joinRoom(){
 
         if(orderReserved){
           await ref.child("order").transaction(current=>{
-            if(!Array.isArray(current)) return current;
-            return current.filter(id=>id!==uid);
+            return normalizeArray(current).filter(id=>id!==uid);
           });
         }
 
@@ -669,6 +752,7 @@ async function armHostDisconnectCleanup(){
 
 function enterRoom(){
   stopListeners();
+  stopHandListener();
 
   disconnectArmed=false;
   leavingRoom=false;
@@ -699,6 +783,18 @@ function enterRoom(){
       if(currentScreen!=="game") startGameView();
       renderGame();
     }else{
+      if(currentScreen==="game"){
+        stopHandListener();
+        myHand=[];
+        selectedHand.clear();
+        selectedField=null;
+        undoSnapshot=null;
+        turnSnapshot=null;
+        previousTurn=null;
+        recoveryUsed=false;
+        handLoaded=false;
+      }
+
       showScreen("lobby");
       renderLobby();
     }
@@ -760,7 +856,7 @@ function renderLobby(){
   if(order.length<2){
     $("lobbyMessage").textContent="게임을 시작하려면 최소 2명이 필요합니다.";
   }else if(!allReady){
-    $("lobbyMessage").textContent="모든 참가자가 준비 완료해야 시작할 수 있습니다.";
+    $("lobbyMessage").textContent="모든 참가자가 준비 완료해야 게임을 시작할 수 있습니다.";
   }else{
     $("lobbyMessage").textContent="모두 준비 완료! 방장이 게임을 시작할 수 있습니다.";
   }
@@ -863,6 +959,8 @@ async function startOnlineGame(){
 }
 
 function startGameView(){
+  stopHandListener();
+
   showScreen("game");
 
   selectedHand.clear();
@@ -871,14 +969,16 @@ function startGameView(){
   turnSnapshot=null;
   recoveryUsed=false;
   previousTurn=null;
-  gameOverShown=false;
   handLoaded=false;
 
   $("gameResult").classList.add("hidden");
   $("returnLobbyButton").classList.add("hidden");
+  $("gameButtons").classList.remove("hidden");
 
-  listen(handsRef().child(uid),"value",snapshot=>{
-    myHand=snapshot.val()||[];
+  handListenerRef=handsRef().child(uid);
+
+  handListenerCallback=snapshot=>{
+    myHand=normalizeArray(snapshot.val());
     handLoaded=true;
 
     if(roomData && roomData.game && isMyTurn() && !turnSnapshot){
@@ -886,24 +986,29 @@ function startGameView(){
     }
 
     renderGame();
-  });
+  };
+
+  handListenerRef.on("value",handListenerCallback);
 }
 
 function saveUndoSnapshot(){
   undoSnapshot={
-    table:structuredClone(roomData.game.table||[]),
+    table:structuredClone(normalizeArray(roomData.game.table)),
     hand:structuredClone(myHand)
   };
 }
 
 function saveTurnSnapshot(){
   turnSnapshot={
-    table:structuredClone(roomData.game.table||[]),
+    table:structuredClone(normalizeArray(roomData.game.table)),
     hand:structuredClone(myHand)
   };
 }
 
 async function writeGameAndHand(game,hand){
+  game.table=normalizeArray(game.table);
+  game.deck=normalizeArray(game.deck);
+
   const updates={};
 
   updates["rooms/"+roomCode+"/game"]=game;
@@ -917,7 +1022,7 @@ async function submitHandTiles(){
   if(actionBusy || !isMyTurn() || !handLoaded) return;
 
   const indexes=[...selectedHand].sort((a,b)=>a-b);
-  const chosen=indexes.map(i=>myHand[i]).filter(Boolean);
+  const chosen=indexes.map(index=>myHand[index]).filter(Boolean);
 
   if(!chosen.length) return;
 
@@ -928,8 +1033,8 @@ async function submitHandTiles(){
     return;
   }
 
-  const usedIds=groups.flat().map(t=>t.id);
-  const chosenIds=chosen.map(t=>t.id);
+  const usedIds=groups.flat().map(tile=>tile.id);
+  const chosenIds=chosen.map(tile=>tile.id);
 
   if(
     usedIds.length!==chosenIds.length ||
@@ -943,12 +1048,13 @@ async function submitHandTiles(){
   actionBusy=true;
 
   try{
-    const score=groups.reduce((sum,g)=>sum+groupScore(g),0);
+    const score=groups.reduce((sum,group)=>sum+groupScore(group),0);
     const opened=(roomData.game.opened||{})[uid]===true;
 
     if(!opened && score<30){
       const game=structuredClone(roomData.game);
-      game.table=Array.isArray(game.table)?game.table:[];
+      game.table=normalizeArray(game.table);
+      game.deck=normalizeArray(game.deck);
 
       if(game.deck.length){
         const hand=[...myHand,game.deck.pop()];
@@ -970,7 +1076,8 @@ async function submitHandTiles(){
     saveUndoSnapshot();
 
     const game=structuredClone(roomData.game);
-    game.table=Array.isArray(game.table)?game.table:[];
+    game.table=normalizeArray(game.table);
+    game.deck=normalizeArray(game.deck);
     game.opened=game.opened||{};
 
     const ordered=groups.map(sortGroup);
@@ -979,7 +1086,7 @@ async function submitHandTiles(){
     game.opened[uid]=true;
 
     const chosenIdSet=new Set(chosenIds);
-    const hand=myHand.filter(t=>!chosenIdSet.has(t.id));
+    const hand=myHand.filter(tile=>!chosenIdSet.has(tile.id));
 
     selectedHand.clear();
 
@@ -1008,8 +1115,10 @@ async function submitHandTiles(){
     );
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
+
 async function surrenderGame(){
   if(actionBusy || !roomData || !roomData.game || roomData.game.result) return;
 
@@ -1026,7 +1135,7 @@ async function surrenderGame(){
     const result=await roomRef().child("game").transaction(current=>{
       if(!current || current.result || current.winnerUid) return;
 
-      const players=Array.isArray(roomData.order)?roomData.order:[];
+      const players=memberIds();
       const remaining=players.filter(id=>id!==uid);
 
       if(players.length===2){
@@ -1059,7 +1168,7 @@ async function surrenderGame(){
     alert("항복 처리에 실패했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
   }finally{
     actionBusy=false;
-    $("surrenderButton").disabled=false;
+    renderGame();
   }
 }
 
@@ -1086,6 +1195,18 @@ async function returnToLobby(){
 
     await db.ref().update(updates);
 
+    stopHandListener();
+    myHand=[];
+    selectedHand.clear();
+    selectedField=null;
+    undoSnapshot=null;
+    turnSnapshot=null;
+    previousTurn=null;
+    recoveryUsed=false;
+    handLoaded=false;
+
+    showScreen("lobby");
+
   }catch(error){
     console.error("대기실 복귀 오류:",error);
     alert("대기실로 돌아가지 못했습니다.\n"+(error.code||"UNKNOWN")+" / "+error.message);
@@ -1103,6 +1224,7 @@ async function moveFieldTile(){
   try{
     const {groupIndex,tileIndex}=selectedField;
     const game=structuredClone(roomData.game);
+    game.table=normalizeArray(game.table);
 
     if(!game.table[groupIndex] || !game.table[groupIndex][tileIndex]) return;
 
@@ -1125,6 +1247,7 @@ async function moveFieldTile(){
     setMessage("필드 타일 이동에 실패했습니다.");
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1165,6 +1288,7 @@ async function drawTile(){
 
   try{
     const game=structuredClone(roomData.game);
+    game.deck=normalizeArray(game.deck);
 
     if(!game.deck.length){
       setMessage("덱에 남은 타일이 없습니다.");
@@ -1186,6 +1310,7 @@ async function drawTile(){
     setMessage("타일을 가져오지 못했습니다.");
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1205,6 +1330,7 @@ async function endTurn(){
     setMessage("턴을 종료하지 못했습니다.");
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1242,6 +1368,7 @@ async function restoreLastAction(){
     setMessage("복구에 실패했습니다.");
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1267,6 +1394,7 @@ async function resetTurn(){
     setMessage("상태 복원에 실패했습니다.");
   }finally{
     actionBusy=false;
+    renderGame();
   }
 }
 
@@ -1299,6 +1427,8 @@ function renderGame(){
   const members=roomData.members||{};
   const myTurn=isMyTurn();
   const result=game.result||null;
+  const table=normalizeArray(game.table);
+  const deck=normalizeArray(game.deck);
 
   $("gameRoomInfo").textContent="방 코드: "+roomCode;
 
@@ -1308,7 +1438,7 @@ function renderGame(){
     ?"게임 종료"
     :(myTurn?"내 차례":(current?current.nickname+" 차례":"상대 차례"));
 
-  $("deckInfo").textContent="남은 타일: "+(game.deck||[]).length;
+  $("deckInfo").textContent="남은 타일: "+deck.length;
 
   if(previousTurn!==game.turnUid){
     previousTurn=game.turnUid;
@@ -1343,24 +1473,24 @@ function renderGame(){
 
   $("board").innerHTML="";
 
-  (game.table||[]).forEach((group,gi)=>{
+  table.forEach((group,groupIndex)=>{
     const groupDiv=document.createElement("div");
     groupDiv.className="group";
 
-    group.forEach((tile,ti)=>{
+    normalizeArray(group).forEach((tile,tileIndex)=>{
       const el=createTileElement(
         tile,
         true,
         selectedField &&
-        selectedField.groupIndex===gi &&
-        selectedField.tileIndex===ti
+        selectedField.groupIndex===groupIndex &&
+        selectedField.tileIndex===tileIndex
       );
 
       el.addEventListener("click",()=>{
         if(!myTurn || actionBusy) return;
 
         selectedHand.clear();
-        selectedField={groupIndex:gi,tileIndex:ti};
+        selectedField={groupIndex,tileIndex};
 
         renderGame();
       });
@@ -1544,6 +1674,7 @@ async function leaveRoom(){
 
 function leaveLocal(){
   stopListeners();
+  stopHandListener();
 
   roomCode="";
   roomData=null;
@@ -1555,7 +1686,6 @@ function leaveLocal(){
   turnSnapshot=null;
   previousTurn=null;
   recoveryUsed=false;
-  gameOverShown=false;
   disconnectArmed=false;
   leavingRoom=false;
   actionBusy=false;
@@ -1574,12 +1704,12 @@ $("leaveButton").addEventListener("click",leaveRoom);
 $("sendChat").addEventListener("click",()=>sendChat("chatInput"));
 $("gameSendChat").addEventListener("click",()=>sendChat("gameChatInput"));
 
-$("chatInput").addEventListener("keydown",e=>{
-  if(e.key==="Enter") sendChat("chatInput");
+$("chatInput").addEventListener("keydown",event=>{
+  if(event.key==="Enter") sendChat("chatInput");
 });
 
-$("gameChatInput").addEventListener("keydown",e=>{
-  if(e.key==="Enter") sendChat("gameChatInput");
+$("gameChatInput").addEventListener("keydown",event=>{
+  if(event.key==="Enter") sendChat("gameChatInput");
 });
 
 $("drawButton").addEventListener("click",drawTile);
@@ -1589,19 +1719,19 @@ $("resetButton").addEventListener("click",resetTurn);
 $("surrenderButton").addEventListener("click",surrenderGame);
 $("returnLobbyButton").addEventListener("click",returnToLobby);
 
-document.addEventListener("keydown",e=>{
-  if(e.key==="Enter" && currentScreen==="game"){
-    if(e.target.tagName==="INPUT") return;
-    e.preventDefault();
+document.addEventListener("keydown",event=>{
+  if(event.key==="Enter" && currentScreen==="game"){
+    if(event.target.tagName==="INPUT") return;
+    event.preventDefault();
     handleEnter();
   }
 
-  if(e.key==="Escape" && currentScreen==="game"){
+  if(event.key==="Escape" && currentScreen==="game"){
     endTurn();
   }
 
-  if(e.key==="ArrowDown" && currentScreen==="game"){
-    e.preventDefault();
+  if(event.key==="ArrowDown" && currentScreen==="game"){
+    event.preventDefault();
     drawTile();
   }
 });
