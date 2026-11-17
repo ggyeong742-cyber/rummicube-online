@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -213,13 +212,15 @@ let currentScreen="menu";
 let gameOverShown=false;
 let disconnectArmed=false;
 let leavingRoom=false;
+let actionBusy=false;
+let handLoaded=false;
 
 const $=id=>document.getElementById(id);
 const roomRef=()=>db.ref("rooms/"+roomCode);
 const handsRef=()=>db.ref("privateHands/"+roomCode);
 const isHost=()=>roomData && roomData.hostUid===uid;
 const memberIds=()=>roomData && Array.isArray(roomData.order)?roomData.order:[];
-const isMyTurn=()=>roomData && roomData.game && roomData.game.turnUid===uid;
+const isMyTurn=()=>roomData && roomData.game && roomData.game.turnUid===uid && !roomData.game.winnerUid;
 
 function showScreen(name){
   currentScreen=name;
@@ -249,6 +250,7 @@ async function login(){
     uid=auth.currentUser.uid;
     return;
   }
+
   const result=await auth.signInAnonymously();
   uid=result.user.uid;
 }
@@ -264,6 +266,7 @@ function makeTile(color,num,joker=false){
 
 function makeDeck(jokerCount){
   const deck=[];
+
   for(const color of Object.keys(COLORS)){
     for(let num=1;num<=13;num++){
       for(let copy=0;copy<2;copy++){
@@ -271,13 +274,16 @@ function makeDeck(jokerCount){
       }
     }
   }
+
   for(let i=0;i<jokerCount;i++){
     deck.push(makeTile(null,0,true));
   }
+
   for(let i=deck.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));
     [deck[i],deck[j]]=[deck[j],deck[i]];
   }
+
   return deck;
 }
 
@@ -305,8 +311,10 @@ function validGroup(group){
       const sequence=new Set(
         Array.from({length:group.length},(_,i)=>start+i)
       );
+
       if(numbers.every(n=>sequence.has(n))){
         const missing=[...sequence].filter(n=>!numbers.includes(n));
+
         if(missing.length===jokers) return true;
       }
     }
@@ -326,6 +334,7 @@ function splitGroups(tiles){
   function combinationsOfSize(size,start,chosen){
     if(chosen.length===size){
       const group=chosen.map(i=>tiles[i]);
+
       if(validGroup(group)) candidates.push(group);
       return;
     }
@@ -408,6 +417,10 @@ function sortGroup(group){
 }
 
 async function createRoom(){
+  if(actionBusy) return;
+  actionBusy=true;
+  $("createButton").disabled=true;
+
   try{
     await login();
 
@@ -415,10 +428,14 @@ async function createRoom(){
     const code=normalizeCode($("createCode").value);
     const jokerCount=Number($("jokerSetting").value);
 
-    if(!name) return alert("닉네임을 입력하세요.");
+    if(!name){
+      alert("닉네임을 입력하세요.");
+      return;
+    }
 
     if(!/^[A-Z0-9]{4,8}$/.test(code)){
-      return alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
+      alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
+      return;
     }
 
     const ref=db.ref("rooms/"+code);
@@ -441,46 +458,57 @@ async function createRoom(){
       chat:{}
     };
 
-    const result=await ref.transaction(current=>{
-      if(current!==null) return;
-      return initialRoom;
-    });
-
-    if(!result.committed){
-      return alert("이미 사용 중인 방 코드입니다.");
-    }
+    await ref.set(initialRoom);
 
     nickname=name;
     roomCode=code;
     enterRoom();
   }catch(error){
     console.error(error);
-    alert("방을 만들지 못했습니다. Firebase 규칙을 확인하세요.");
+    alert("방을 만들지 못했습니다. 이미 사용 중인 코드이거나 Firebase 규칙에 문제가 있을 수 있습니다.");
+  }finally{
+    actionBusy=false;
+    $("createButton").disabled=false;
   }
 }
 
 async function joinRoom(){
+  if(actionBusy) return;
+  actionBusy=true;
+  $("joinButton").disabled=true;
+
+  let reserved=false;
+  let code="";
+
   try{
     await login();
 
     const name=$("joinName").value.trim();
-    const code=normalizeCode($("joinCode").value);
+    code=normalizeCode($("joinCode").value);
 
-    if(!name) return alert("닉네임을 입력하세요.");
+    if(!name){
+      alert("닉네임을 입력하세요.");
+      return;
+    }
 
     if(!/^[A-Z0-9]{4,8}$/.test(code)){
-      return alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
+      alert("방 코드는 영문 대문자와 숫자로 된 4~8자여야 합니다.");
+      return;
     }
 
     const ref=db.ref("rooms/"+code);
     const snapshot=await ref.get();
 
-    if(!snapshot.exists()) return alert("존재하지 않는 방입니다.");
+    if(!snapshot.exists()){
+      alert("존재하지 않는 방입니다.");
+      return;
+    }
 
     const data=snapshot.val();
 
     if(data.status!=="waiting"){
-      return alert("이미 게임이 시작된 방입니다.");
+      alert("이미 게임이 시작된 방입니다.");
+      return;
     }
 
     if(data.members && data.members[uid]){
@@ -490,26 +518,10 @@ async function joinRoom(){
       return;
     }
 
-    const order=data.order||[];
-
-    if(order.length>=4){
-      return alert("방 인원이 가득 찼습니다.");
-    }
-
-    nickname=name;
-    roomCode=code;
-
-    await ref.child("members/"+uid).set({
-      nickname:name,
-      ready:false,
-      joinedAt:Date.now(),
-      handCount:0
-    });
-
     const orderRef=ref.child("order");
 
     const orderResult=await orderRef.transaction(current=>{
-      const currentOrder=current||[];
+      const currentOrder=Array.isArray(current)?current:[];
 
       if(currentOrder.includes(uid)) return currentOrder;
       if(currentOrder.length>=4) return;
@@ -518,16 +530,41 @@ async function joinRoom(){
     });
 
     if(!orderResult.committed){
-      await ref.child("members/"+uid).remove();
-      roomCode="";
-      return alert("방 인원이 가득 찼거나 참가에 실패했습니다.");
+      alert("방 인원이 가득 찼거나 참가에 실패했습니다.");
+      return;
     }
 
+    reserved=true;
+
+    await ref.child("members/"+uid).set({
+      nickname:name,
+      ready:false,
+      joinedAt:Date.now(),
+      handCount:0
+    });
+
+    nickname=name;
+    roomCode=code;
     enterRoom();
   }catch(error){
     console.error(error);
+
+    if(reserved && code){
+      try{
+        await db.ref("rooms/"+code+"/order").transaction(current=>{
+          if(!Array.isArray(current)) return current;
+          return current.filter(id=>id!==uid);
+        });
+      }catch(rollbackError){
+        console.error(rollbackError);
+      }
+    }
+
     roomCode="";
-    alert("방 참가에 실패했습니다. Firebase 규칙을 확인하세요.");
+    alert("방 참가에 실패했습니다. Firebase 규칙과 방 상태를 확인하세요.");
+  }finally{
+    actionBusy=false;
+    $("joinButton").disabled=false;
   }
 }
 
@@ -538,6 +575,7 @@ async function armHostDisconnectCleanup(){
 
   const code=roomCode;
   const cleanup={};
+
   cleanup["rooms/"+code]=null;
   cleanup["privateHands/"+code]=null;
 
@@ -552,8 +590,11 @@ async function armHostDisconnectCleanup(){
 
 function enterRoom(){
   stopListeners();
+
   disconnectArmed=false;
   leavingRoom=false;
+  actionBusy=false;
+  handLoaded=false;
 
   showScreen("lobby");
   $("lobbyCode").textContent=roomCode;
@@ -647,14 +688,13 @@ function renderLobby(){
 }
 
 async function saveSettings(){
-  if(!isHost() || !roomData || roomData.status!=="waiting"){
-    return;
-  }
+  if(!isHost() || !roomData || roomData.status!=="waiting") return;
 
   const jokerCount=Number($("lobbyJokers").value);
 
   if(![0,1,2].includes(jokerCount)){
-    return alert("올바른 조커 개수를 선택하세요.");
+    alert("올바른 조커 개수를 선택하세요.");
+    return;
   }
 
   try{
@@ -678,10 +718,11 @@ async function saveSettings(){
 async function toggleReady(){
   if(!roomData || roomData.status!=="waiting") return;
 
-  const current=roomData.members[uid].ready;
+  const member=roomData.members[uid];
+  if(!member) return;
 
   try{
-    await roomRef().child("members/"+uid+"/ready").set(!current);
+    await roomRef().child("members/"+uid+"/ready").set(!member.ready);
   }catch(error){
     console.error(error);
     alert("준비 상태 변경에 실패했습니다. Firebase 규칙을 확인하세요.");
@@ -689,48 +730,55 @@ async function toggleReady(){
 }
 
 async function startOnlineGame(){
-  if(!isHost() || !roomData) return;
+  if(actionBusy || !isHost() || !roomData) return;
 
-  const order=memberIds();
-
-  if(order.length<2 || order.length>4){
-    return alert("게임을 시작하려면 2~4명이 필요합니다.");
-  }
-
-  if(!order.every(id=>roomData.members[id] && roomData.members[id].ready===true)){
-    return alert("모든 참가자가 준비해야 합니다.");
-  }
-
-  const deck=makeDeck(Number(roomData.settings.jokerCount));
-  const updates={};
-
-  for(const id of order){
-    const hand=[];
-
-    for(let i=0;i<14;i++){
-      hand.push(deck.pop());
-    }
-
-    updates["privateHands/"+roomCode+"/"+id]=hand;
-    updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=14;
-  }
-
-  updates["rooms/"+roomCode+"/game"]={
-    deck,
-    table:[],
-    turnUid:order[0],
-    turnNumber:1,
-    opened:{},
-    winnerUid:null
-  };
-
-  updates["rooms/"+roomCode+"/status"]="playing";
+  actionBusy=true;
+  $("startButton").disabled=true;
 
   try{
+    const order=memberIds();
+
+    if(order.length<2 || order.length>4){
+      alert("게임을 시작하려면 2~4명이 필요합니다.");
+      return;
+    }
+
+    if(!order.every(id=>roomData.members[id] && roomData.members[id].ready===true)){
+      alert("모든 참가자가 준비해야 합니다.");
+      return;
+    }
+
+    const deck=makeDeck(Number(roomData.settings.jokerCount));
+    const updates={};
+
+    for(const id of order){
+      const hand=[];
+
+      for(let i=0;i<14;i++){
+        hand.push(deck.pop());
+      }
+
+      updates["privateHands/"+roomCode+"/"+id]=hand;
+      updates["rooms/"+roomCode+"/members/"+id+"/handCount"]=14;
+    }
+
+    updates["rooms/"+roomCode+"/game"]={
+      deck,
+      table:[],
+      turnUid:order[0],
+      turnNumber:1,
+      opened:{},
+      winnerUid:null
+    };
+
+    updates["rooms/"+roomCode+"/status"]="playing";
+
     await db.ref().update(updates);
   }catch(error){
     console.error(error);
     alert("게임을 시작하지 못했습니다. Firebase 규칙을 확인하세요.");
+  }finally{
+    actionBusy=false;
   }
 }
 
@@ -744,9 +792,16 @@ function startGameView(){
   recoveryUsed=false;
   previousTurn=null;
   gameOverShown=false;
+  handLoaded=false;
 
   listen(handsRef().child(uid),"value",snapshot=>{
     myHand=snapshot.val()||[];
+    handLoaded=true;
+
+    if(roomData && roomData.game && isMyTurn() && !turnSnapshot){
+      saveTurnSnapshot();
+    }
+
     renderGame();
   });
 }
@@ -776,7 +831,7 @@ async function writeGameAndHand(game,hand){
 }
 
 async function submitHandTiles(){
-  if(!isMyTurn()) return;
+  if(actionBusy || !isMyTurn() || !handLoaded) return;
 
   const indexes=[...selectedHand].sort((a,b)=>a-b);
   const chosen=indexes.map(i=>myHand[i]).filter(Boolean);
@@ -790,128 +845,178 @@ async function submitHandTiles(){
     return;
   }
 
-  const score=groups.reduce((sum,g)=>sum+groupScore(g),0);
-  const opened=(roomData.game.opened||{})[uid]===true;
+  actionBusy=true;
 
-  if(!opened && score<30){
-    const game=structuredClone(roomData.game);
+  try{
+    const score=groups.reduce((sum,g)=>sum+groupScore(g),0);
+    const opened=(roomData.game.opened||{})[uid]===true;
 
-    if(game.deck.length){
-      const hand=[...myHand,game.deck.pop()];
-      selectedHand.clear();
-      selectedField=null;
+    if(!opened && score<30){
+      const game=structuredClone(roomData.game);
 
-      await writeGameAndHand(game,hand);
-      await finishMyTurn();
+      if(game.deck.length){
+        const hand=[...myHand,game.deck.pop()];
+        selectedHand.clear();
+        selectedField=null;
 
-      setMessage("최초 등록 30점 미달: 타일을 한 장 가져왔습니다.");
-    }else{
-      await finishMyTurn();
-      setMessage("최초 등록 30점 미달: 덱이 비어 있습니다.");
+        await writeGameAndHand(game,hand);
+        await finishMyTurn();
+
+        setMessage("최초 등록 30점 미달: 타일을 한 장 가져왔습니다.");
+      }else{
+        await finishMyTurn();
+        setMessage("최초 등록 30점 미달: 덱이 비어 있습니다.");
+      }
+
+      return;
     }
 
-    return;
-  }
+    saveUndoSnapshot();
 
-  saveUndoSnapshot();
+    const game=structuredClone(roomData.game);
+    const ordered=groups.map(sortGroup);
 
-  const game=structuredClone(roomData.game);
-  const ordered=groups.map(sortGroup);
+    game.table.push(...ordered);
+    game.opened=game.opened||{};
+    game.opened[uid]=true;
 
-  game.table.push(...ordered);
-  game.opened=game.opened||{};
-  game.opened[uid]=true;
+    const chosenIds=new Set(chosen.map(t=>t.id));
+    const hand=myHand.filter(t=>!chosenIds.has(t.id));
 
-  const hand=myHand.filter(t=>!chosen.some(c=>c.id===t.id));
+    selectedHand.clear();
 
-  selectedHand.clear();
+    if(!hand.length){
+      game.winnerUid=uid;
+      await writeGameAndHand(game,hand);
+      await roomRef().child("status").set("finished");
+      return;
+    }
 
-  if(!hand.length){
-    game.winnerUid=uid;
     await writeGameAndHand(game,hand);
-    await roomRef().child("status").set("finished");
-    return;
+    setMessage("타일을 성공적으로 제출했습니다.");
+  }catch(error){
+    console.error(error);
+    setMessage("타일 제출에 실패했습니다. 연결 상태와 Firebase 규칙을 확인하세요.");
+  }finally{
+    actionBusy=false;
   }
-
-  await writeGameAndHand(game,hand);
-  setMessage("타일을 성공적으로 제출했습니다.");
 }
 
 async function moveFieldTile(){
-  if(!isMyTurn() || !selectedField) return;
+  if(actionBusy || !isMyTurn() || !selectedField || !handLoaded) return;
 
-  const {groupIndex,tileIndex}=selectedField;
-  const game=structuredClone(roomData.game);
+  actionBusy=true;
 
-  if(!game.table[groupIndex] || !game.table[groupIndex][tileIndex]) return;
+  try{
+    const {groupIndex,tileIndex}=selectedField;
+    const game=structuredClone(roomData.game);
 
-  saveUndoSnapshot();
+    if(!game.table[groupIndex] || !game.table[groupIndex][tileIndex]) return;
 
-  const [tile]=game.table[groupIndex].splice(tileIndex,1);
+    saveUndoSnapshot();
 
-  if(!game.table[groupIndex].length){
-    game.table.splice(groupIndex,1);
+    const [tile]=game.table[groupIndex].splice(tileIndex,1);
+
+    if(!game.table[groupIndex].length){
+      game.table.splice(groupIndex,1);
+    }
+
+    const hand=[...myHand,tile];
+
+    selectedField=null;
+
+    await writeGameAndHand(game,hand);
+    setMessage("필드 타일을 내 패로 이동했습니다.");
+  }catch(error){
+    console.error(error);
+    setMessage("필드 타일 이동에 실패했습니다.");
+  }finally{
+    actionBusy=false;
   }
-
-  const hand=[...myHand,tile];
-
-  selectedField=null;
-
-  await writeGameAndHand(game,hand);
-  setMessage("필드 타일을 내 패로 이동했습니다.");
 }
 
 async function finishMyTurn(){
-  if(!isMyTurn()) return;
+  if(!isMyTurn()) return false;
 
-  const game=structuredClone(roomData.game);
   const order=memberIds();
-  const current=order.indexOf(uid);
-  const next=order[(current+1)%order.length];
 
-  game.turnUid=next;
-  game.turnNumber=(game.turnNumber||1)+1;
+  if(!order.length) return false;
+
+  const gameRef=roomRef().child("game");
+
+  const result=await gameRef.transaction(current=>{
+    if(!current || current.turnUid!==uid || current.winnerUid) return;
+
+    const currentIndex=order.indexOf(uid);
+    if(currentIndex<0) return;
+
+    const next=order[(currentIndex+1)%order.length];
+
+    return {
+      ...current,
+      turnUid:next,
+      turnNumber:(current.turnNumber||1)+1
+    };
+  });
 
   selectedHand.clear();
   selectedField=null;
 
-  await roomRef().child("game").set(game);
+  return result.committed;
 }
 
 async function drawTile(){
-  if(!isMyTurn()) return;
+  if(actionBusy || !isMyTurn() || !handLoaded) return;
 
-  const game=structuredClone(roomData.game);
+  actionBusy=true;
 
-  if(!game.deck.length){
-    setMessage("덱에 남은 타일이 없습니다.");
+  try{
+    const game=structuredClone(roomData.game);
+
+    if(!game.deck.length){
+      setMessage("덱에 남은 타일이 없습니다.");
+      await finishMyTurn();
+      return;
+    }
+
+    const hand=[...myHand,game.deck.pop()];
+
+    selectedHand.clear();
+    selectedField=null;
+
+    await writeGameAndHand(game,hand);
     await finishMyTurn();
-    return;
+
+    setMessage("타일 한 개를 가져왔습니다.");
+  }catch(error){
+    console.error(error);
+    setMessage("타일을 가져오지 못했습니다.");
+  }finally{
+    actionBusy=false;
   }
-
-  const hand=[...myHand,game.deck.pop()];
-
-  selectedHand.clear();
-  selectedField=null;
-
-  await writeGameAndHand(game,hand);
-  await finishMyTurn();
-
-  setMessage("타일 한 개를 가져왔습니다.");
 }
 
 async function endTurn(){
-  if(!isMyTurn()) return;
+  if(actionBusy || !isMyTurn()) return;
 
-  selectedHand.clear();
-  selectedField=null;
+  actionBusy=true;
 
-  await finishMyTurn();
-  setMessage("턴을 종료했습니다.");
+  try{
+    selectedHand.clear();
+    selectedField=null;
+
+    await finishMyTurn();
+    setMessage("턴을 종료했습니다.");
+  }catch(error){
+    console.error(error);
+    setMessage("턴을 종료하지 못했습니다.");
+  }finally{
+    actionBusy=false;
+  }
 }
 
 async function restoreLastAction(){
-  if(!isMyTurn()) return;
+  if(actionBusy || !isMyTurn() || !handLoaded) return;
 
   if(recoveryUsed){
     setMessage("이번 차례의 복구 기회를 이미 사용했습니다.");
@@ -923,34 +1028,53 @@ async function restoreLastAction(){
     return;
   }
 
-  recoveryUsed=true;
+  actionBusy=true;
 
-  const game=structuredClone(roomData.game);
-  game.table=structuredClone(undoSnapshot.table);
+  try{
+    recoveryUsed=true;
 
-  await writeGameAndHand(game,structuredClone(undoSnapshot.hand));
+    const game=structuredClone(roomData.game);
+    game.table=structuredClone(undoSnapshot.table);
 
-  undoSnapshot=null;
-  selectedHand.clear();
-  selectedField=null;
+    await writeGameAndHand(game,structuredClone(undoSnapshot.hand));
 
-  setMessage("마지막 조작을 복구했습니다.");
+    undoSnapshot=null;
+    selectedHand.clear();
+    selectedField=null;
+
+    setMessage("마지막 조작을 복구했습니다.");
+  }catch(error){
+    console.error(error);
+    recoveryUsed=false;
+    setMessage("복구에 실패했습니다.");
+  }finally{
+    actionBusy=false;
+  }
 }
 
 async function resetTurn(){
-  if(!isMyTurn() || !turnSnapshot) return;
+  if(actionBusy || !isMyTurn() || !turnSnapshot || !handLoaded) return;
 
-  const game=structuredClone(roomData.game);
-  game.table=structuredClone(turnSnapshot.table);
+  actionBusy=true;
 
-  recoveryUsed=false;
-  undoSnapshot=null;
-  selectedHand.clear();
-  selectedField=null;
+  try{
+    const game=structuredClone(roomData.game);
+    game.table=structuredClone(turnSnapshot.table);
 
-  await writeGameAndHand(game,structuredClone(turnSnapshot.hand));
+    recoveryUsed=false;
+    undoSnapshot=null;
+    selectedHand.clear();
+    selectedField=null;
 
-  setMessage("이전 플레이어 상태로 복원했습니다.");
+    await writeGameAndHand(game,structuredClone(turnSnapshot.hand));
+
+    setMessage("이전 플레이어 상태로 복원했습니다.");
+  }catch(error){
+    console.error(error);
+    setMessage("상태 복원에 실패했습니다.");
+  }finally{
+    actionBusy=false;
+  }
 }
 
 function tileClass(tile){
@@ -998,11 +1122,16 @@ function renderGame(){
     selectedField=null;
     undoSnapshot=null;
     recoveryUsed=false;
+    turnSnapshot=null;
 
-    if(myTurn){
+    if(myTurn && handLoaded){
       saveTurnSnapshot();
       setMessage("내 차례입니다. 타일을 선택하세요.");
     }
+  }
+
+  if(myTurn && handLoaded && !turnSnapshot){
+    saveTurnSnapshot();
   }
 
   $("opponents").innerHTML="";
@@ -1034,7 +1163,7 @@ function renderGame(){
       );
 
       el.addEventListener("click",()=>{
-        if(!myTurn) return;
+        if(!myTurn || actionBusy) return;
 
         selectedHand.clear();
         selectedField={groupIndex:gi,tileIndex:ti};
@@ -1058,7 +1187,7 @@ function renderGame(){
     );
 
     el.addEventListener("click",()=>{
-      if(!myTurn) return;
+      if(!myTurn || actionBusy) return;
 
       selectedField=null;
 
@@ -1074,10 +1203,10 @@ function renderGame(){
     $("hand").appendChild(el);
   });
 
-  $("drawButton").disabled=!myTurn || !!game.winnerUid;
-  $("endButton").disabled=!myTurn || !!game.winnerUid;
-  $("undoButton").disabled=!myTurn || !undoSnapshot || recoveryUsed;
-  $("resetButton").disabled=!myTurn || !turnSnapshot;
+  $("drawButton").disabled=!myTurn || !!game.winnerUid || actionBusy;
+  $("endButton").disabled=!myTurn || !!game.winnerUid || actionBusy;
+  $("undoButton").disabled=!myTurn || !undoSnapshot || recoveryUsed || actionBusy;
+  $("resetButton").disabled=!myTurn || !turnSnapshot || actionBusy;
 
   if(game.winnerUid && !gameOverShown){
     gameOverShown=true;
@@ -1087,7 +1216,7 @@ function renderGame(){
 }
 
 async function handleEnter(){
-  if(currentScreen!=="game" || !isMyTurn()) return;
+  if(currentScreen!=="game" || !isMyTurn() || actionBusy) return;
 
   if(selectedField){
     await moveFieldTile();
@@ -1106,7 +1235,7 @@ async function sendChat(inputId){
   const input=$(inputId);
   const text=input.value.trim();
 
-  if(!text || !roomCode) return;
+  if(!text || !roomCode || !uid) return;
 
   input.value="";
 
@@ -1155,7 +1284,7 @@ function renderChat(messages){
 }
 
 async function leaveRoom(){
-  if(!roomCode || !uid || leavingRoom) return;
+  if(!roomCode || !uid || leavingRoom || actionBusy) return;
 
   leavingRoom=true;
 
@@ -1207,6 +1336,8 @@ function leaveLocal(){
   gameOverShown=false;
   disconnectArmed=false;
   leavingRoom=false;
+  actionBusy=false;
+  handLoaded=false;
 
   showScreen("menu");
 }
@@ -1236,6 +1367,7 @@ $("resetButton").addEventListener("click",resetTurn);
 
 document.addEventListener("keydown",e=>{
   if(e.key==="Enter" && currentScreen==="game"){
+    if(e.target.tagName==="INPUT") return;
     e.preventDefault();
     handleEnter();
   }
