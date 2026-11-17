@@ -364,30 +364,67 @@ async function createRoom(){
   }
 }
 async function joinRoom(){
-if(actionLock)return;
-nickname=$("nickname").value.trim();
-const code=$("roomCodeInput").value.trim().toUpperCase();
-if(!nickname||!code){alert("닉네임과 방 코드를 입력해 주세요.");return;}
-actionLock=true;
-try{
-const ref=db.ref("rooms/"+code);
-const snap=await ref.once("value");
-if(!snap.exists())throw new Error("존재하지 않는 방입니다.");
-const data=snap.val();
-if(data.status!=="waiting")throw new Error("이미 게임이 시작된 방입니다.");
-const order=normalize(data.order);
-if(order.length>=4)throw new Error("방이 가득 찼습니다.");
-if(data.members&&data.members[uid])throw new Error("이미 참가한 방입니다.");
-const updates={};
-updates["members/"+uid]={nickname,ready:false,handCount:0};
-updates["order"]=order.concat(uid);
-await ref.update(updates);
-await enterRoom(code);
-}catch(e){
-alert(e.message);
-}finally{actionLock=false;}
-}
+  if(actionLock)return;
 
+  nickname=$("nickname").value.trim();
+  const code=$("roomCodeInput").value.trim().toUpperCase();
+
+  if(!nickname||!code){
+    alert("닉네임과 방 코드를 입력해 주세요.");
+    return;
+  }
+
+  actionLock=true;
+
+  try{
+    if(!auth.currentUser){
+      throw new Error("로그인이 완료되지 않았습니다.");
+    }
+
+    uid=auth.currentUser.uid;
+
+    const ref=db.ref("rooms/"+code);
+    const snap=await ref.once("value");
+
+    if(!snap.exists())throw new Error("존재하지 않는 방입니다.");
+
+    const data=snap.val();
+
+    if(data.status!=="waiting"){
+      throw new Error("이미 게임이 시작된 방입니다.");
+    }
+
+    const order=normalize(data.order);
+
+    if(order.length>=4){
+      throw new Error("방이 가득 찼습니다.");
+    }
+
+    if(data.members&&data.members[uid]){
+      throw new Error("이미 참가한 방입니다.");
+    }
+
+    const updates={};
+
+    updates["members/"+uid]={
+      nickname,
+      ready:false,
+      handCount:0
+    };
+
+    updates["order"]=order.concat(uid);
+
+    await ref.update(updates);
+
+    await enterRoom(code);
+
+  }catch(e){
+    console.error("방 참가 오류:",e);
+    alert("방 참가 실패: "+e.message);
+  }finally{
+    actionLock=false;
+  }
+}
 function isHost(){
 return room&&room.hostUid===uid;
 }
